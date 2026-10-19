@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import SessionLocal, init_db
-from app.routes import document_types
+from app.routes import document_types, documents
 from app.services.rulebooks import load_builtin_rulebooks
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DocReview API", lifespan=lifespan)
 app.include_router(document_types.router)
+app.include_router(documents.router)
 
 
 @app.get("/api/health")

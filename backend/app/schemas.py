@@ -41,3 +41,43 @@ class DocumentTypeDetail(DocumentTypeSummary):
     updated_by: str
     updated_at: datetime
     rules: list[Rule]
+
+
+class ReviewSummary(BaseModel):
+    id: int
+    status: str
+    score: int | None
+    passed: bool | None
+    rulebook_version: int
+    created_at: datetime
+
+
+class VersionSummary(BaseModel):
+    id: int
+    version_number: int
+    original_filename: str
+    file_type: str
+    extracted_characters: int
+    uploaded_at: datetime
+    reviews: list[ReviewSummary]
+
+
+class DocumentDetail(BaseModel):
+    id: int
+    title: str
+    document_type: str
+    project_name: str
+    uploaded_by: str
+    created_at: datetime
+    versions: list[VersionSummary]
+
+
+class UploadResult(BaseModel):
+    document_id: int
+    version_id: int
+    version_number: int
+    review_id: int
+    review_status: str
+    file_type: str
+    extracted_characters: int
+    extracted_text_preview: str
