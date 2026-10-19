@@ -16,8 +16,7 @@ Copy-Item .env.example .env
 # 2. Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 cd ..
 
 # 3. Frontend
@@ -28,27 +27,25 @@ cd ..
 
 ## Running the app
 
-Use two terminals.
+Use two terminals. Always `cd` into the folder first; VS Code terminals open in the project root.
 
 **Terminal 1, backend** (API on http://localhost:8000, interactive docs at http://localhost:8000/docs):
 
 ```powershell
-cd backend
-.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload
+cd "D:\AI Agents\DocumentReviewAgentackend"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 **Terminal 2, frontend** (app on http://localhost:5173):
 
 ```powershell
-cd frontend
+cd "D:\AI Agents\DocumentReviewAgentrontend"
 npm run dev
 ```
 
 ## Running tests
 
 ```powershell
-cd backend
-.venv\Scripts\Activate.ps1
-pytest
+cd "D:\AI Agents\DocumentReviewAgentackend"
+.\.venv\Scripts\python.exe -m pytest
 ```
