@@ -10,7 +10,7 @@ def upload(client, filename, data, **fields):
     return client.post("/api/documents", files={"file": (filename, data)}, data=form)
 
 
-def test_upload_creates_document_version_and_queued_review(client):
+def test_upload_creates_document_version_and_runs_review(client):
     response = upload(client, "brd_strong.docx", (SAMPLES / "brd_strong.docx").read_bytes(), project_name="AP Automation")
     assert response.status_code == 201
     body = response.json()
@@ -26,7 +26,7 @@ def test_upload_creates_document_version_and_queued_review(client):
     assert detail["document_type"] == "brd"
     [version] = detail["versions"]
     assert version["original_filename"] == "brd_strong.docx"
-    assert version["reviews"][0]["status"] == "queued"
+    assert version["reviews"][0]["status"] == "complete"  # the background review has run (demo mode)
     assert version["reviews"][0]["rulebook_version"] == 1
 
 

@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
+    # How hard the model thinks: low / medium / high. Medium balances quality and speed.
+    anthropic_effort: str = "medium"
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'backend' / 'docreview.db'}"
     rulebooks_dir: Path = PROJECT_ROOT / "rulebooks"
 

@@ -20,6 +20,11 @@ def get_session():
         yield session
 
 
+def get_session_factory():
+    """FastAPI dependency: how background tasks open their own database session."""
+    return SessionLocal
+
+
 def init_db(bind=engine):
     """Create any tables that don't exist yet."""
     from app import models  # noqa: F401  (registers the tables)
