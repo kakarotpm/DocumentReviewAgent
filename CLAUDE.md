@@ -35,7 +35,11 @@ Keep scoring simple. These replace the spec's version:
 ## Rulebook editing decisions (product owner, 2026-10-19; overrides intent.md §15 "in-app editing out of scope")
 
 - Users can **edit, add and delete rules** and **create new document types** in the UI. Editing a rule covers its text, category, **weight (High/Medium/Low)** and **critical / non-critical flag**; prompt changes and `.md` uploads can change these too (a **Rulebooks** screen, which replaces the read-only Guidelines screen).
-- Users can **upload a `.md` rulebook** (to replace an existing rulebook or create a new type) and **download** any rulebook as `.md`.
+- **Three ways to do everything**, both for creating a new document type and for adding or changing rules in an existing one:
+  1. **Manually** in a form (new type: name, description, pass threshold, then add rules one by one).
+  2. **Upload a `.md` file** in the rulebook format.
+  3. **Write a prompt** describing what's needed; the AI drafts the type or the rule changes.
+- Any rulebook can be **downloaded** as `.md`.
 - Users can **write a prompt** to add or update rules. The AI proposes changes; nothing is applied automatically.
 - Upload and prompt changes both show a **preview of the changes** (added / changed / removed rules) that the user must confirm before saving.
 - **Anyone can edit** (no login). The editor types their name; every save records who, when, and an optional note in the version history.

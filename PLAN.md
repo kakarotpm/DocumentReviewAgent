@@ -137,20 +137,21 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 
 **What gets built:**
 - A **Rulebooks** screen (replaces Guidelines): list of document types; open one to see its rules, version and history.
-- Edit any rule (text, category, weight, critical), add rules, delete rules, create a new document type. Saving asks for your name and an optional note, and creates a new version.
-- **Upload `.md`:** validate it, show a preview of the changes (added / changed / removed), then confirm to replace a rulebook or create a new type.
-- **Change by prompt:** type an instruction ("Add a rule requiring a data retention section"); the AI proposes changes; the same preview appears; confirm to save.
+- **New document type**, three ways: **manually** (form for name, description and pass threshold, then add rules one by one), **upload `.md`**, or **describe it in a prompt** ("A Data Migration Plan must cover source/target mapping, data quality checks, reconciliation and rollback") and the AI drafts the rules.
+- **Change an existing rulebook**, the same three ways: **manually** (edit any rule's text, category, weight, critical flag; add rules; delete rules), **upload `.md`**, or **prompt** ("Add a rule requiring a data retention section", "Make the risks rule critical").
+- Upload and prompt results always show a **preview** (added / changed / removed rules) to edit or confirm before saving. Every save asks for your name and an optional note, and creates a new version.
 - **Download `.md`** for any rulebook.
 - **Custom type on the New Review screen:** describe the type in free text, the AI drafts the rules, you adjust them, then run the review. A "Save as reusable type" checkbox controls whether it appears in the type picker afterwards (unsaved ones are kept but hidden, so revised versions still work).
 
 **Files:** `prompts/edit_rules_v1.txt`, `prompts/generate_custom_rules_v1.txt`, `backend/app/services/rulebook_editor.py`, `backend/app/routes/document_types.py` (extended), `backend/tests/test_rulebook_editor.py`, `frontend/src/pages/Rulebooks.jsx`, `pages/RulebookDetail.jsx`, `components/RuleEditor.jsx`, `components/ChangePreview.jsx`, updates to `NewReview.jsx`.
 
 **How you test it:**
-1. Open Rulebooks → BRD, change a rule's weight, save; the version number goes up and the history shows your name.
-2. Prompt "Add a rule that requires a data retention section"; check the preview, then confirm.
-3. Download the BRD `.md`, edit it in VS Code, upload it back; check the preview.
-4. Run a review on a sample BRD and confirm it uses the new rules, while an older review still shows its original rules.
-5. New Review → Custom → "Data Migration Plan" with a paragraph of instructions; adjust the rules, run, and save it as a reusable type.
+1. Create three new types: one by hand, one by uploading a `.md`, one from a prompt. All three appear in the New Review type picker.
+2. Open Rulebooks → BRD, change a rule's weight, save; the version number goes up and the history shows your name.
+3. Prompt "Add a rule that requires a data retention section"; check the preview, then confirm.
+4. Download the BRD `.md`, edit it in VS Code, upload it back; check the preview.
+5. Run a review on a sample BRD and confirm it uses the new rules, while an older review still shows its original rules.
+6. New Review → Custom → "Data Migration Plan" with a paragraph of instructions; adjust the rules, run, and save it as a reusable type.
 
 **AC:** AC7.
 
