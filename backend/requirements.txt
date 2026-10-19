@@ -8,3 +8,9 @@ pydantic-settings==2.16.0
 # Testing
 pytest==9.1.1
 httpx2==2.13.1
+
+# Database
+sqlalchemy==2.1.5
+
+# Reads the settings block at the top of rulebook files
+pyyaml==6.0.3

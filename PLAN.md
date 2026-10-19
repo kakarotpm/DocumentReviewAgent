@@ -4,6 +4,8 @@ Based on [intent.md](intent.md). Nine phases, following intent.md §12. Each pha
 
 **Status:** Plan approved 2026-10-16. Check in with the product owner at the end of every phase.
 
+**Revised 2026-10-19:** scoring simplified (High/Medium/Low weights, no N/A), about 10 rules per type, and rulebooks made editable in the UI. Phase 8 is now "Rulebook editor and custom types", and the Guidelines screen becomes the Rulebooks screen.
+
 Acceptance criteria (AC) are numbered in the order they appear in intent.md §14:
 
 | # | Acceptance criterion (short) |
@@ -14,7 +16,7 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 | AC4 | Same unchanged document reviewed 3 times → scores within ±3 |
 | AC5 | Revised version links to the same document and shows the score change; fail → pass = Corrected |
 | AC6 | Dashboard counts match the data and respond to filters |
-| AC7 | Custom type from free text; rules editable; weights validated to 100; optionally saved |
+| AC7 | Rulebooks editable in the UI (edit/add/delete rules, new types); `.md` upload and AI prompt changes are previewed before saving; custom type from free text, optionally saved |
 | AC8 | Friendly errors for malformed rulebooks, unsupported files, scanned PDFs, API failures |
 
 ---
@@ -35,13 +37,18 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 
 ## Phase 2 — Rulebooks
 
-**Before starting: brainstorm with the product owner** on what the rules should be and how scoring works (statuses, weights, critical rules, N/A). Goal: keep it simple. Decisions get recorded in CLAUDE.md before any rulebook is written.
+**Brainstorm done (2026-10-19):** see "Scoring decisions" and "Rulebook editing decisions" in CLAUDE.md. Rulebook content for the five types is agreed as tables in chat before the files are written.
 
-**What gets built:** All five rulebooks. A parser that turns a rulebook file into structured rules and rejects bad files with a specific message (for example: "brd.md: weights sum to 95, expected 100" or "BRD-07 is missing 'weight'"). Two endpoints: `GET /api/document-types` and `GET /api/document-types/{key}`.
+**What gets built:**
+- All five rulebooks as `.md` files, about 10 rules each, with High/Medium/Low weights.
+- A parser that turns a `.md` rulebook into structured rules and rejects bad files with a specific message (for example: "BRD-07: weight must be high, medium or low" or "Duplicate rule ID BRD-04").
+- An exporter that turns stored rules back into `.md`.
+- Database tables `document_types` and `rulebook_versions`. Each save is a new version with its rules, who changed it, when, and a note. The five files are loaded into the database on first run.
+- Endpoints: `GET /api/document-types`, `GET /api/document-types/{key}`, `GET /api/document-types/{key}/export`.
 
-**Files:** `rulebooks/brd.md` (v1.0, from the §3.3 table), `rulebooks/frd.md`, `rulebooks/process_as_is.md`, `rulebooks/process_to_be.md`, `rulebooks/roadmap.md` (all `0.1-draft`). Rule ID prefixes: `BRD-`, `FRD-`, `ASIS-`, `TOBE-`, `RDM-`. Also `backend/app/services/rulebooks.py`, `backend/app/schemas.py` (Rule and Rulebook models), `backend/app/routes/document_types.py`, `backend/tests/test_rulebook_parser.py`, and `backend/tests/fixtures/` (deliberately broken rulebooks).
+**Files:** `rulebooks/brd.md`, `frd.md`, `process_as_is.md`, `process_to_be.md`, `roadmap.md`. Rule ID prefixes: `BRD-`, `FRD-`, `ASIS-`, `TOBE-`, `RDM-`. Also `backend/app/db.py`, `backend/app/models.py`, `backend/app/services/rulebooks.py` (parse, validate, export, load), `backend/app/schemas.py`, `backend/app/routes/document_types.py`, `backend/tests/test_rulebooks.py`, and `backend/tests/fixtures/` (deliberately broken rulebooks).
 
-**How you test it:** `pytest` passes. In `/docs`, call `GET /api/document-types/brd` and see 14 rules. Change a weight in a copy of a rulebook and confirm the clear error.
+**How you test it:** `pytest` passes. In `/docs`, call `GET /api/document-types/brd` and see 10 rules, then call the export endpoint and get the `.md` back. Break a copy of a rulebook (bad weight, duplicate ID) and confirm the clear error.
 
 **AC:** AC8 (malformed rulebooks).
 
@@ -49,9 +56,9 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 
 ## Phase 3 — Upload and extraction
 
-**What gets built:** The database tables (all six from §9), text extraction for all four formats that keeps headings and numbering, scanned-PDF detection (pages with almost no extractable text), and file type and 10 MB size checks. `POST /api/documents` reads the file in memory, saves only its extracted text, and creates the Document and Version 1. The original file is never written to disk. In this phase the Review record is created as `queued`; nothing evaluates it yet.
+**What gets built:** The remaining database tables (documents, versions, reviews, rule results, suggestions), text extraction for all four formats that keeps headings and numbering, scanned-PDF detection (pages with almost no extractable text), and file type and 10 MB size checks. `POST /api/documents` reads the file in memory, saves only its extracted text, and creates the Document and Version 1. The original file is never written to disk. In this phase the Review record is created as `queued`; nothing evaluates it yet.
 
-**Files:** `backend/app/db.py`, `backend/app/models.py`, `backend/app/services/extraction.py`, `backend/app/services/documents.py`, `backend/app/routes/documents.py`, `backend/tests/test_extraction.py`, `backend/tests/fixtures/` (small .docx/.pdf/.md/.txt files plus a scanned-style PDF), `samples/brd_strong.md`, `samples/brd_weak.md` (also as .docx).
+**Files:** `backend/app/models.py` (extended), `backend/app/services/extraction.py`, `backend/app/services/documents.py`, `backend/app/routes/documents.py`, `backend/tests/test_extraction.py`, `backend/tests/fixtures/` (small .docx/.pdf/.md/.txt files plus a scanned-style PDF), `samples/brd_strong.md`, `samples/brd_weak.md` (also as .docx).
 
 **How you test it:** In `/docs`, upload each sample file and see the extracted text in the response. Upload a `.png` or a scanned PDF and get a friendly error. `pytest` passes.
 
@@ -62,7 +69,7 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 ## Phase 4 — Review engine
 
 **What gets built:**
-- `scoring.py`: the pure scoring function. It takes rule results and the rules and returns the score, pass/fail, critical failures, and a per-category breakdown. It is fully unit-tested (N/A exclusion, N/A rejected when `allow_na` is false, critical override, rounding, all-N/A edge case).
+- `scoring.py`: the pure scoring function. It takes rule results and the rules and returns the score, pass/fail, critical failures, and a per-category breakdown. It is fully unit-tested (High/Medium/Low points, half points for Partially Met, critical override, rounding, a critical rule Partially Met does not force a Fail).
 - The evaluation prompt, kept as a file.
 - A Claude call that uses structured outputs with a Pydantic schema matching §5.2, retries once if the output is invalid, and handles refusals and API errors.
 - Background processing (queued → processing → complete / error).
@@ -98,7 +105,7 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 ## Phase 6 — Documents and versions
 
 **What gets built:**
-- `POST /api/documents/{id}/versions`, which reuses the rule snapshot from Version 1 so versions are compared against the same rules.
+- `POST /api/documents/{id}/versions`, which reviews the revised version against the **latest** rulebook. If the rulebook changed since the previous version, the results page shows "Rules updated since v1" next to the score change.
 - Document status logic (Passed / Failed / Corrected, plus "In review" / "Error" when the latest review isn't complete), unit-tested.
 - Documents list with search, filters, and sorting.
 - Document detail page with a version timeline.
@@ -126,13 +133,24 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 
 ---
 
-## Phase 8 — Custom document type
+## Phase 8 — Rulebook editor and custom types
 
-**What gets built:** The rule-generation prompt, `POST /api/document-types/custom/preview`, an editable rules table with a running weight total (submission blocked until it reaches 100), and a "Save as reusable custom type" option. Unsaved custom types are still stored, but hidden from the type picker, so revised versions keep working.
+**What gets built:**
+- A **Rulebooks** screen (replaces Guidelines): list of document types; open one to see its rules, version and history.
+- Edit any rule (text, category, weight, critical), add rules, delete rules, create a new document type. Saving asks for your name and an optional note, and creates a new version.
+- **Upload `.md`:** validate it, show a preview of the changes (added / changed / removed), then confirm to replace a rulebook or create a new type.
+- **Change by prompt:** type an instruction ("Add a rule requiring a data retention section"); the AI proposes changes; the same preview appears; confirm to save.
+- **Download `.md`** for any rulebook.
+- **Custom type on the New Review screen:** describe the type in free text, the AI drafts the rules, you adjust them, then run the review. A "Save as reusable type" checkbox controls whether it appears in the type picker afterwards (unsaved ones are kept but hidden, so revised versions still work).
 
-**Files:** `prompts/generate_custom_rules_v1.txt`, `backend/app/services/custom_types.py`, `backend/tests/test_custom_types.py`, `frontend/src/components/CustomRulesEditor.jsx`, updates to `NewReview.jsx`.
+**Files:** `prompts/edit_rules_v1.txt`, `prompts/generate_custom_rules_v1.txt`, `backend/app/services/rulebook_editor.py`, `backend/app/routes/document_types.py` (extended), `backend/tests/test_rulebook_editor.py`, `frontend/src/pages/Rulebooks.jsx`, `pages/RulebookDetail.jsx`, `components/RuleEditor.jsx`, `components/ChangePreview.jsx`, updates to `NewReview.jsx`.
 
-**How you test it:** Pick Custom, type "Data Migration Plan" and a paragraph of instructions, edit the generated rules until the total reaches 100, run the review, and save the type. It then appears in the type picker.
+**How you test it:**
+1. Open Rulebooks → BRD, change a rule's weight, save; the version number goes up and the history shows your name.
+2. Prompt "Add a rule that requires a data retention section"; check the preview, then confirm.
+3. Download the BRD `.md`, edit it in VS Code, upload it back; check the preview.
+4. Run a review on a sample BRD and confirm it uses the new rules, while an older review still shows its original rules.
+5. New Review → Custom → "Data Migration Plan" with a paragraph of instructions; adjust the rules, run, and save it as a reusable type.
 
 **AC:** AC7.
 
@@ -140,11 +158,11 @@ Acceptance criteria (AC) are numbered in the order they appear in intent.md §14
 
 ## Phase 9 — Polish
 
-**What gets built:** The Guidelines page (renders each rulebook and shows a draft badge), the PDF report download, Open/Done/Dismissed toggles on suggestions (`PATCH /api/suggestions/{id}`), a dark mode toggle, a pass over every empty and error state, and a final UX review against §8.
+**What gets built:** The PDF report download (includes the rulebook version used), Open/Done/Dismissed toggles on suggestions (`PATCH /api/suggestions/{id}`), a dark mode toggle, a pass over every empty and error state, and a final UX review against §8.
 
 **New dependency (I'll ask first):** a PDF library. I recommend `fpdf2`: pure Python, small, and it installs cleanly on Windows. WeasyPrint looks nicer but needs extra system libraries on Windows.
 
-**Files:** `frontend/src/pages/Guidelines.jsx`, `backend/app/services/report_pdf.py`, `backend/app/routes/suggestions.py`, theme toggle component.
+**Files:** `backend/app/services/report_pdf.py`, `backend/app/routes/suggestions.py`, theme toggle component.
 
 **How you test it:** A walkthrough checklist I'll provide covering every screen in light and dark mode, plus downloading a report.
 

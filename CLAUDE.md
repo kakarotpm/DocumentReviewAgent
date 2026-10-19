@@ -13,12 +13,34 @@ BA leads get a dashboard showing volume, pass/fail rates, documents corrected af
 
 ## Core principles (don't break these)
 
-- **The AI judges each rule; the code calculates the score.** The model never outputs a score. Scoring is a pure, unit-tested Python function (`score = round(earned / applicable_weight × 100)`; Met = 100%, Partially Met = 50%, Not Met = 0, N/A excluded and only allowed when `allow_na: true`).
-- **Rulebooks are the source of truth.** They are Markdown files with YAML front matter in `rulebooks/` (format in intent.md §3.2). The parser rejects malformed rulebooks and any rulebook whose weights don't sum to 100.
-- **Reproducibility.** Every review stores a snapshot of the rules, the rulebook version, the model name, and the prompt version. Later rulebook edits never change past results.
+- **The AI judges each rule; the code calculates the score.** The model never outputs a score. Scoring is a pure, unit-tested Python function. See "Scoring decisions" below.
+- **Rulebooks live in the database and are editable in the UI.** The Markdown files in `rulebooks/` are the starting content, loaded into the database on first run, and Markdown is the import/export format (intent.md §3.2, as amended below). The parser rejects malformed rulebooks with a clear message. See "Rulebook editing decisions" below.
+- **Reproducibility.** Every rulebook save creates a new, immutable rulebook version. Every review records the exact rulebook version it used, plus the model name and prompt version. Later rulebook edits never change past results.
 - **Prompts live in `prompts/`** as versioned text files (`evaluate_rules_v1.txt`, ...). Don't hard-code them in Python.
 - **Business logic lives in service functions**, separate from FastAPI route handlers, so a future agent can call them as tools.
 - **Privacy:** never log the full document text. Uploaded files are **not** stored: read the upload in memory, extract its text, save only `extracted_text` in the database, then discard the file (product owner decision, overrides intent.md's original §11).
+
+## Scoring decisions (product owner, 2026-10-19; these override intent.md §3.2, §4, §6)
+
+Keep scoring simple. These replace the spec's version:
+
+- **Three outcomes per rule:** Met (full points), Partially Met (half points), Not Met (0). There is **no Not Applicable** and no `allow_na` field.
+- **Weights are levels, not numbers:** each rule has `weight: high | medium | low`, worth 3 / 2 / 1 points. Nobody has to make weights add up to 100.
+- **Score** = round(points earned ÷ points possible × 100).
+- **Pass** = score ≥ `pass_threshold` (default 80) **and** no critical rule is Not Met. A critical rule that is Partially Met does not force a Fail on its own.
+- **Critical rules:** 1–3 per document type, marked `critical: true`.
+- **About 10 rules per document type.**
+- **Custom types** use the same High/Medium/Low levels, so the custom-rules editor doesn't need a "weights must total 100" check.
+
+## Rulebook editing decisions (product owner, 2026-10-19; overrides intent.md §15 "in-app editing out of scope")
+
+- Users can **edit, add and delete rules** and **create new document types** in the UI. Editing a rule covers its text, category, **weight (High/Medium/Low)** and **critical / non-critical flag**; prompt changes and `.md` uploads can change these too (a **Rulebooks** screen, which replaces the read-only Guidelines screen).
+- Users can **upload a `.md` rulebook** (to replace an existing rulebook or create a new type) and **download** any rulebook as `.md`.
+- Users can **write a prompt** to add or update rules. The AI proposes changes; nothing is applied automatically.
+- Upload and prompt changes both show a **preview of the changes** (added / changed / removed rules) that the user must confirm before saving.
+- **Anyone can edit** (no login). The editor types their name; every save records who, when, and an optional note in the version history.
+- **Revised document versions are reviewed against the latest rulebook.** If the rulebook changed since the previous version, the results page says so next to the score change.
+- Custom types are just rulebooks created from a prompt, so they use the same editor.
 
 ## Tech stack
 
@@ -36,7 +58,7 @@ DocumentReviewAgent/          (repo root = app root)
 ├── intent.md                 product spec (called SPEC.md in the spec itself)
 ├── CLAUDE.md
 ├── PLAN.md                   phased delivery plan
-├── rulebooks/                brd.md, frd.md, process_as_is.md, process_to_be.md, roadmap.md
+├── rulebooks/                starting rulebooks, loaded into the DB on first run
 ├── prompts/                  evaluate_rules_v1.txt, generate_custom_rules_v1.txt
 ├── samples/                  sample documents (strong + weak BRD at minimum)
 ├── backend/

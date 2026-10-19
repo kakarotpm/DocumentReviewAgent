@@ -58,6 +58,8 @@ Every document type has a **rulebook**: a Markdown file in the `rulebooks/` fold
 
 ### 3.2 Rulebook file format
 
+> **Amended 2026-10-19 by the product owner:** `weight` is `high | medium | low` (3 / 2 / 1 points), not a number that must total 100; `allow_na` is removed; about 10 rules per type. See CLAUDE.md, "Scoring decisions".
+
 Each rulebook has YAML front matter followed by one section per rule. The app must parse this format into structured rules and reject a rulebook (with a clear error) if it is malformed or its weights do not sum to 100.
 
 ```markdown
@@ -124,6 +126,8 @@ Claude Code should draft these four rulebooks in the same format (weights summin
 ---
 
 ## 4. Scoring Model
+
+> **Amended 2026-10-19 by the product owner:** no Not Applicable outcome; weights are High/Medium/Low levels; score = earned ÷ possible × 100. Pass/Fail rule (§4.3) unchanged. See CLAUDE.md, "Scoring decisions".
 
 Scoring must be deterministic and transparent. **The AI judges each rule; the code calculates the score.** The language model never outputs the final score.
 
@@ -383,6 +387,8 @@ Each phase ends with a working, testable result and a git commit.
 ---
 
 ## 15. Out of Scope for MVP
+
+> **Amended 2026-10-19 by the product owner:** in-app rulebook editing is now **in scope** (edit/add/delete rules, upload `.md`, AI prompt to add or update rules). See CLAUDE.md, "Rulebook editing decisions".
 
 - Login, user roles, and permissions.
 - In-app editing of rulebooks (edited as Markdown files for now).
