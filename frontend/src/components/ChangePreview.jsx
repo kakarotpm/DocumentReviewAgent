@@ -5,7 +5,7 @@ import RuleList from "./RuleList";
 import { Badge, Button, Card, CriticalBadge, ErrorMessage, Field, Notice, WeightBadge } from "./ui";
 
 const FIELD_LABELS = {
-  title: "Title", category: "Category", weight: "Weight", critical: "Critical",
+  title: "Title", weight: "Weight", critical: "Critical",
   check: "What to check", pass_example: "Pass example", fail_example: "Fail example",
   display_name: "Name", description: "Description", pass_threshold: "Pass threshold",
 };
@@ -94,7 +94,7 @@ export default function ChangePreview({ preview, onSave, onEdit, onCancel, savin
                       <RuleHeading rule={change.after} />
                       <table className="mt-2 w-full text-left">
                         <tbody>
-                          {change.changed_fields.map((f) => (
+                          {change.changed_fields.filter((f) => f !== "category").map((f) => (
                             <tr key={f} className="align-top">
                               <th className="w-32 py-1 pr-3 font-medium text-slate-500">{FIELD_LABELS[f]}</th>
                               <td className="py-1 pr-3 text-slate-500 line-through">{show(f, change.before[f])}</td>

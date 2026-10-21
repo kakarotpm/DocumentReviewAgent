@@ -1,5 +1,4 @@
 // Read-only view of a rulebook's rules.
-import { WEIGHT_POINTS } from "../lib/format";
 import { CriticalBadge, WeightBadge } from "./ui";
 
 export default function RuleList({ rules }) {
@@ -10,11 +9,9 @@ export default function RuleList({ rules }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-slate-500">{rule.id}</span>
             <h3 className="font-medium text-slate-900 dark:text-slate-100">{rule.title}</h3>
-            <span className="text-xs text-slate-500">· {rule.category}</span>
             <span className="ml-auto flex flex-wrap gap-1.5">
               {rule.critical && <CriticalBadge />}
               <WeightBadge weight={rule.weight} />
-              <span className="text-xs text-slate-500">{WEIGHT_POINTS[rule.weight]} pts</span>
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">{rule.check}</p>

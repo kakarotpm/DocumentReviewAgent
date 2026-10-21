@@ -1,7 +1,7 @@
-// Edit a rulebook by hand: its settings, and every rule's text, category, weight and critical flag.
+// Edit a rulebook by hand: its settings, and every rule's text, weight and critical flag.
 // Used for editing an existing type, creating a new one, and tweaking an AI or .md preview before saving.
 import { useState } from "react";
-import { idPrefix, keyFromName, nextRuleId, rememberName, savedName, WEIGHT_POINTS } from "../lib/format";
+import { idPrefix, keyFromName, nextRuleId, rememberName, savedName } from "../lib/format";
 import Icon from "./Icon";
 import { Button, Card, ErrorMessage, Field } from "./ui";
 
@@ -11,8 +11,6 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
   const [name, setName] = useState(savedName());
   const [note, setNote] = useState("");
 
-  const categories = [...new Set(rulebook.rules.map((r) => r.category).filter(Boolean))];
-  const totalPoints = rulebook.rules.reduce((sum, r) => sum + WEIGHT_POINTS[r.weight], 0);
   const criticalCount = rulebook.rules.filter((r) => r.critical).length;
 
   const setField = (field, value) => {
@@ -30,7 +28,8 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
 
   const addRule = () => {
     const id = nextRuleId(rulebook.rules, idPrefix(rulebook.display_name));
-    const rule = { id, title: "", category: categories[0] || "", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
+    // Category isn't shown on this screen; new rules go in "General".
+    const rule = { id, title: "", category: "General", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
     setRulebook((rb) => ({ ...rb, rules: [...rb.rules, rule] }));
     setOpenId(id);
   };
@@ -66,7 +65,7 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
 
       <Card
         title={`Rules (${rulebook.rules.length})`}
-        actions={<span className="text-sm text-slate-500">{totalPoints} points in total · {criticalCount} critical</span>}
+        actions={<span className="text-sm text-slate-500">{criticalCount} critical</span>}
       >
         {rulebook.rules.length === 0 && (
           <p className="mb-4 text-sm text-slate-500">No rules yet. Add the first one below.</p>
@@ -88,9 +87,9 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
                     value={rule.weight}
                     onChange={(e) => updateRule(rule.id, "weight", e.target.value)}
                   >
-                    <option value="high">High (3)</option>
-                    <option value="medium">Medium (2)</option>
-                    <option value="low">Low (1)</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
                   </select>
                   <label className="flex items-center gap-1.5 whitespace-nowrap text-sm">
                     <input type="checkbox" checked={rule.critical} onChange={(e) => updateRule(rule.id, "critical", e.target.checked)} className="h-4 w-4 accent-red-600" />
@@ -102,12 +101,11 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
                 </div>
                 {open && (
                   <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-800">
-                    <Field label="Title" required>
-                      <input className="input" value={rule.title} onChange={(e) => updateRule(rule.id, "title", e.target.value)} placeholder="e.g. Measurable business objectives" />
-                    </Field>
-                    <Field label="Category" required hint="Groups rules in the score breakdown.">
-                      <input className="input" list="rule-categories" value={rule.category} onChange={(e) => updateRule(rule.id, "category", e.target.value)} placeholder="e.g. Scope" />
-                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label="Title" required>
+                        <input className="input" value={rule.title} onChange={(e) => updateRule(rule.id, "title", e.target.value)} placeholder="e.g. Measurable business objectives" />
+                      </Field>
+                    </div>
                     <div className="sm:col-span-2">
                       <Field label="What to check" required hint="Exactly what the reviewer looks for, including what counts as only partly met.">
                         <textarea className="input min-h-20" value={rule.check} onChange={(e) => updateRule(rule.id, "check", e.target.value)} />
@@ -130,11 +128,6 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
             );
           })}
         </ol>
-        <datalist id="rule-categories">
-          {categories.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
         <Button variant="secondary" icon="plus" onClick={addRule} className="mt-3">
           Add rule
         </Button>
