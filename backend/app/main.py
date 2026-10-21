@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import SessionLocal, init_db
-from app.routes import document_types, documents, reviews
+from app.routes import dashboard, document_types, documents, reviews
 from app.services.llm import ai_available
 from app.services.review_engine import mark_interrupted_reviews
 from app.services.rulebooks import load_builtin_rulebooks
@@ -34,6 +34,7 @@ app = FastAPI(title="DocReview API", lifespan=lifespan)
 app.include_router(document_types.router)
 app.include_router(documents.router)
 app.include_router(reviews.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/api/health")

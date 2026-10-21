@@ -7,7 +7,7 @@ Based on [intent.md](intent.md). Nine phases, following intent.md §12. Each pha
 **Revised 2026-10-19:** scoring simplified (High/Medium/Low weights, no N/A), about 10 rules per type, and rulebooks made editable in the UI. Phase 8 is now "Rulebook editor and custom types", and the Guidelines screen becomes the Rulebooks screen.
 
 **Progress (2026-10-21):** No API key yet, so the product owner asked for everything else to be built first. Done: Phases 1–6 and 8, plus from Phase 9 the suggestion status toggles, dark mode, and empty/error states. Without a key the app runs in **demo mode** (keyword-matching reviewer, clearly labelled). Remaining:
-- **Phase 7 Dashboard:** waiting for the product owner to try the SQL first.
+- ~~Phase 7 Dashboard~~ done 2026-10-21 (product owner asked Claude to write the SQL). Queries in `backend/app/services/dashboard.sql`. "Most failed rules" counts Not Met only. The "pass rate overlay" is shown as a second chart under reviews-per-week, not a second y-axis on the same chart.
 - **Phase 9 PDF report:** needs `fpdf2` (ask before installing).
 - **With the API key:** run real reviews on both samples, run `scripts/consistency_check.py` (±3 target), and try prompt-based rule drafting.
 
