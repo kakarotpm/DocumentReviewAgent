@@ -6,7 +6,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 ---
 
 ## RDM-01: Version, owner and last-updated date
-- category: Structure
 - weight: low
 - critical: false
 - check: The roadmap shows its version, owner and the date it was last updated.
@@ -14,7 +13,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: No version, owner or date.
 
 ## RDM-02: Vision and strategic objectives
-- category: Strategy
 - weight: high
 - critical: false
 - check: The roadmap states the vision and the strategic objectives it serves, clearly
@@ -23,7 +21,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: A list of features with no stated vision or objectives.
 
 ## RDM-03: Time horizon and phases
-- category: Timeline
 - weight: medium
 - critical: false
 - check: The roadmap covers a defined time horizon broken into phases, quarters or similar
@@ -32,7 +29,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: Items listed with no time periods.
 
 ## RDM-04: Initiatives linked to objectives
-- category: Strategy
 - weight: high
 - critical: true
 - check: Every initiative is linked to at least one strategic objective. Some initiatives
@@ -41,7 +37,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: Initiatives listed with no connection to any objective.
 
 ## RDM-05: Milestones with dates
-- category: Timeline
 - weight: high
 - critical: true
 - check: Key milestones are listed with target dates (a specific date or at least a month).
@@ -50,7 +45,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: "Go-live: TBC."
 
 ## RDM-06: Owner per initiative
-- category: Ownership
 - weight: medium
 - critical: false
 - check: Each initiative has a named owner (person or role).
@@ -58,7 +52,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: No owners shown.
 
 ## RDM-07: Dependencies between initiatives
-- category: Planning
 - weight: medium
 - critical: false
 - check: Dependencies between initiatives, and on external teams or systems, are shown.
@@ -66,7 +59,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: No dependencies mentioned.
 
 ## RDM-08: Assumptions and resource needs
-- category: Planning
 - weight: medium
 - critical: false
 - check: Key assumptions and the resources needed (people, budget, tools) are stated.
@@ -74,7 +66,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: No assumptions or resources mentioned.
 
 ## RDM-09: Risks
-- category: Planning
 - weight: low
 - critical: false
 - check: The main risks to the roadmap are identified, ideally with a mitigation.
@@ -82,7 +73,6 @@ description: Sets out the vision, initiatives, timeline and milestones for a pro
 - fail_example: No risks mentioned.
 
 ## RDM-10: Success measures per phase
-- category: Metrics
 - weight: medium
 - critical: false
 - check: Each phase has success measures that show whether it achieved what it set out to.

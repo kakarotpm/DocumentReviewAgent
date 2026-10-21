@@ -6,7 +6,6 @@ description: Captures the business need, objectives, scope and high-level requir
 ---
 
 ## BRD-01: Document control and sign-off
-- category: Structure
 - weight: low
 - critical: false
 - check: The document has a title, version number, author, date and revision history,
@@ -15,7 +14,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: A title page with no version, date, revision history or approvers.
 
 ## BRD-02: Business context and problem
-- category: Context
 - weight: medium
 - critical: false
 - check: The document explains why the project exists: the business problem or opportunity,
@@ -24,7 +22,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: "This project will implement a new invoicing system."
 
 ## BRD-03: Measurable business objectives
-- category: Objectives
 - weight: high
 - critical: true
 - check: The document states business objectives that are specific and measurable, each with
@@ -33,7 +30,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: "Improve the invoicing process."
 
 ## BRD-04: Scope in and out
-- category: Scope
 - weight: high
 - critical: true
 - check: The document explicitly lists both what is in scope and what is out of scope.
@@ -42,7 +38,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: A scope section that lists features to be delivered but never states exclusions.
 
 ## BRD-05: Stakeholders and roles
-- category: Stakeholders
 - weight: medium
 - critical: false
 - check: Stakeholders are identified with their role and responsibility on the project
@@ -51,7 +46,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: "Stakeholders: Finance, IT."
 
 ## BRD-06: Requirements uniquely identified and prioritised
-- category: Requirements Quality
 - weight: medium
 - critical: false
 - check: Every business requirement has a unique ID and a priority (for example MoSCoW or
@@ -60,7 +54,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: A bulleted list of requirements with no IDs or priorities.
 
 ## BRD-07: Requirements are clear, testable and business-level
-- category: Requirements Quality
 - weight: high
 - critical: false
 - check: Requirements describe business needs, not technical solution design. Each one is
@@ -70,7 +63,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: "The system should be fast and user-friendly and use a microservices architecture."
 
 ## BRD-08: Assumptions, constraints and dependencies
-- category: Governance
 - weight: medium
 - critical: false
 - check: The document lists assumptions, constraints (budget, time, regulatory, technical)
@@ -79,7 +71,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: No assumptions, constraints or dependencies mentioned anywhere.
 
 ## BRD-09: Risks with mitigations
-- category: Governance
 - weight: low
 - critical: false
 - check: Key risks are identified and each has a mitigation or owner. Risks without
@@ -88,7 +79,6 @@ description: Captures the business need, objectives, scope and high-level requir
 - fail_example: "Risks: TBD."
 
 ## BRD-10: Success metrics and KPIs
-- category: Objectives
 - weight: medium
 - critical: false
 - check: The document defines how success will be measured after delivery: KPIs, their

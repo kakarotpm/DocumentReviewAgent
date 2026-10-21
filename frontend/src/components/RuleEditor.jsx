@@ -28,8 +28,7 @@ export default function RuleEditor({ initial, isNew = false, onSave, onCancel, s
 
   const addRule = () => {
     const id = nextRuleId(rulebook.rules, idPrefix(rulebook.display_name));
-    // Category isn't shown on this screen; new rules go in "General".
-    const rule = { id, title: "", category: "General", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
+    const rule = { id, title: "", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
     setRulebook((rb) => ({ ...rb, rules: [...rb.rules, rule] }));
     setOpenId(id);
   };

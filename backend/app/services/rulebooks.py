@@ -10,7 +10,6 @@ Markdown format (see rulebooks/brd.md for a full example):
     ---
 
     ## BRD-01: Rule title
-    - category: Structure
     - weight: low            (high, medium or low)
     - critical: false        (true or false)
     - check: What the reviewer must check. Can continue on
@@ -33,8 +32,10 @@ from app.schemas import DocumentTypeDetail, DocumentTypeSummary, Rule, Rulebook
 logger = logging.getLogger(__name__)
 
 FRONT_MATTER_FIELDS = {"doc_type", "display_name", "pass_threshold", "description", "version"}
-RULE_FIELDS = {"category", "weight", "critical", "check", "pass_example", "fail_example"}
-REQUIRED_RULE_FIELDS = ["category", "weight", "check"]
+RULE_FIELDS = {"weight", "critical", "check", "pass_example", "fail_example"}
+REQUIRED_RULE_FIELDS = ["weight", "check"]
+# Older rulebooks had a "category" field; it is no longer used, so it is quietly ignored.
+IGNORED_RULE_FIELDS = {"category"}
 WEIGHTS = {"high", "medium", "low"}
 
 HEADING = re.compile(r"^##\s+([A-Za-z]+-\d+)\s*:\s*(.+?)\s*$")
@@ -130,7 +131,7 @@ def parse_rulebook(text: str, source: str = "Rulebook") -> Rulebook:
         if rule_id in seen_ids:
             errors.append(f"Rule ID {rule_id} is used more than once. Each rule needs its own ID.")
         seen_ids.add(rule_id)
-        for name in sorted(set(fields) - RULE_FIELDS):
+        for name in sorted(set(fields) - RULE_FIELDS - IGNORED_RULE_FIELDS):
             errors.append(f"{rule_id}: unknown field '{name}'. Allowed: {', '.join(sorted(RULE_FIELDS))}.")
         missing = [f for f in REQUIRED_RULE_FIELDS if not fields.get(f)]
         for name in missing:
@@ -147,7 +148,6 @@ def parse_rulebook(text: str, source: str = "Rulebook") -> Rulebook:
             Rule(
                 id=rule_id,
                 title=raw["title"],
-                category=fields["category"],
                 weight=weight,
                 critical=critical_text == "true",
                 check=fields["check"],
@@ -183,7 +183,6 @@ def rulebook_to_markdown(rulebook: Rulebook, version: int | None = None) -> str:
     out = ["---", yaml.safe_dump(meta, sort_keys=False, allow_unicode=True).strip(), "---", ""]
     for rule in rulebook.rules:
         out.append(f"## {rule.id}: {rule.title}")
-        out.append(f"- category: {rule.category}")
         out.append(f"- weight: {rule.weight}")
         out.append(f"- critical: {'true' if rule.critical else 'false'}")
         out.append(f"- check: {rule.check}")

@@ -30,11 +30,12 @@ Keep scoring simple. These replace the spec's version:
 - **Pass** = score ≥ `pass_threshold` (default 80) **and** no critical rule is Not Met. A critical rule that is Partially Met does not force a Fail on its own.
 - **Critical rules:** 1–3 per document type, marked `critical: true`.
 - **About 10 rules per document type.**
+- **No categories** (product owner, 2026-10-21): rules have no category, and there is no "score by category" breakdown on results or reports. Weights show as High/Medium/Low only, never as point numbers, in the rulebook screens.
 - **Custom types** use the same High/Medium/Low levels, so the custom-rules editor doesn't need a "weights must total 100" check.
 
 ## Rulebook editing decisions (product owner, 2026-10-19; overrides intent.md §15 "in-app editing out of scope")
 
-- Users can **edit, add and delete rules** and **create new document types** in the UI. Editing a rule covers its text, category, **weight (High/Medium/Low)** and **critical / non-critical flag**; prompt changes and `.md` uploads can change these too (a **Rulebooks** screen, which replaces the read-only Guidelines screen).
+- Users can **edit, add and delete rules** and **create new document types** in the UI. Editing a rule covers its text, **weight (High/Medium/Low)** and **critical / non-critical flag**; prompt changes and `.md` uploads can change these too (a **Rulebooks** screen, which replaces the read-only Guidelines screen).
 - **Three ways to do everything**, both for creating a new document type and for adding or changing rules in an existing one:
   1. **Manually** in a form (new type: name, description, pass threshold, then add rules one by one).
   2. **Upload a `.md` file** in the rulebook format.

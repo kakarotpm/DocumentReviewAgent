@@ -11,7 +11,6 @@ Weight = Literal["high", "medium", "low"]
 class Rule(BaseModel):
     id: str
     title: str
-    category: str
     weight: Weight
     critical: bool = False
     check: str
@@ -114,7 +113,6 @@ class AIReviewOutput(BaseModel):
 class AIProposedRule(BaseModel):
     id: str | None = None
     title: str
-    category: str
     weight: Weight
     critical: bool
     check: str
@@ -145,7 +143,6 @@ class SuggestionOut(BaseModel):
 class RuleResultOut(BaseModel):
     rule_id: str
     title: str
-    category: str
     weight: str
     critical: bool
     status: str
@@ -155,12 +152,6 @@ class RuleResultOut(BaseModel):
     location: str
     explanation: str
     suggestions: list[SuggestionOut]
-
-
-class CategoryOut(BaseModel):
-    category: str
-    points_earned: float
-    points_possible: int
 
 
 class RuleRef(BaseModel):
@@ -202,7 +193,6 @@ class ReviewDetail(BaseModel):
     version_number: int
     latest_version_number: int
     original_filename: str
-    categories: list[CategoryOut]
     rules: list[RuleResultOut]
     comparison: VersionComparison | None
 

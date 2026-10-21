@@ -15,7 +15,6 @@ description: For tests.
 Optional introduction text is fine here.
 
 ## TST-01: First rule
-- category: Structure
 - weight: high
 - critical: true
 - check: The document has a title
@@ -23,7 +22,6 @@ Optional introduction text is fine here.
 - pass_example: "Title v1.0"
 
 ## TST-02: Second rule
-- category: Scope
 - weight: low
 - check: The document lists what is out of scope.
 """
@@ -67,6 +65,11 @@ def test_parses_valid_rulebook():
 def test_export_then_import_gives_the_same_rulebook():
     rulebook = parse_rulebook(VALID)
     assert parse_rulebook(rulebook_to_markdown(rulebook, version=3)) == rulebook
+
+
+def test_old_files_with_category_still_work():
+    old = VALID.replace("- weight: high", "- category: Structure\n- weight: high")
+    assert parse_rulebook(old) == parse_rulebook(VALID)
 
 
 def test_windows_line_endings_are_fine():

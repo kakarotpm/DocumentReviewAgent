@@ -34,7 +34,7 @@ def test_review_results_for_strong_brd(client):
     assert review["passed"] is True
     assert review["score"] >= 80
     assert len(review["rules"]) == 10
-    assert {c["category"] for c in review["categories"]} >= {"Scope", "Objectives"}
+    assert "categories" not in review and "category" not in review["rules"][0]
     assert review["comparison"] is None  # version 1 has nothing to compare with
 
 

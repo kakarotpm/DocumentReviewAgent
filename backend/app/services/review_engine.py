@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from app.models import DocumentVersion, Review, RuleResult, Suggestion
 from app.schemas import (
-    CategoryOut,
     ReviewDetail,
     Rule,
     RuleRef,
@@ -62,7 +61,6 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
             rule_result = RuleResult(
                 rule_id=rule.id,
                 rule_title=rule.title,
-                category=rule.category,
                 weight=rule.weight,
                 critical=rule.critical,
                 status=judgement.status,
@@ -180,12 +178,6 @@ def get_review(session: Session, review_id: int) -> ReviewDetail | None:
     document = version.document
     rulebook = review.rulebook_version
 
-    categories: dict[str, CategoryOut] = {}
-    for r in review.rule_results:
-        category = categories.setdefault(r.category, CategoryOut(category=r.category, points_earned=0, points_possible=0))
-        category.points_earned += r.points_earned
-        category.points_possible += r.points_possible
-
     return ReviewDetail(
         id=review.id,
         status=review.status,
@@ -214,12 +206,10 @@ def get_review(session: Session, review_id: int) -> ReviewDetail | None:
         version_number=version.version_number,
         latest_version_number=document.versions[-1].version_number,
         original_filename=version.original_filename,
-        categories=list(categories.values()),
         rules=[
             RuleResultOut(
                 rule_id=r.rule_id,
                 title=r.rule_title,
-                category=r.category,
                 weight=r.weight,
                 critical=r.critical,
                 status=r.status,

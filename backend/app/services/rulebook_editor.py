@@ -28,7 +28,7 @@ from app.services import llm
 from app.services.rulebooks import DOC_TYPE_KEY, RulebookError, get_document_type, parse_rulebook
 
 RULE_ID = re.compile(r"^[A-Z]+-\d+$")
-RULE_FIELDS = ["title", "category", "weight", "critical", "check", "pass_example", "fail_example"]
+RULE_FIELDS = ["title", "weight", "critical", "check", "pass_example", "fail_example"]
 
 
 class EditError(ValueError):
@@ -79,7 +79,7 @@ def validate_rulebook(rulebook: Rulebook) -> list[str]:
         if rule.id in seen:
             errors.append(f"{label}: this rule ID is used more than once.")
         seen.add(rule.id)
-        for field in ("title", "category", "check"):
+        for field in ("title", "check"):
             if not getattr(rule, field).strip():
                 errors.append(f"{label}: please fill in the {field}.")
     return errors
@@ -265,7 +265,6 @@ def preview_prompt(session: Session, request: PromptRulesRequest) -> RulebookPre
         Rule(
             id=p.id if p.id in taken else next(new_ids),
             title=p.title,
-            category=p.category,
             weight=p.weight,
             critical=p.critical,
             check=p.check,

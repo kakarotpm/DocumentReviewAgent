@@ -6,7 +6,6 @@ description: Describes in detail what the system must do to meet the business re
 ---
 
 ## FRD-01: Document control and sign-off
-- category: Structure
 - weight: low
 - critical: false
 - check: The document has a title, version number, author, date, revision history, and a
@@ -15,7 +14,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: No version, date or approvers anywhere in the document.
 
 ## FRD-02: Unique IDs traced to the BRD
-- category: Traceability
 - weight: high
 - critical: true
 - check: Every functional requirement has a unique ID and references the BRD requirement ID(s)
@@ -25,7 +23,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: Functional requirements listed without IDs or any link back to the BRD.
 
 ## FRD-03: Use cases or user stories with acceptance criteria
-- category: Requirements Quality
 - weight: high
 - critical: true
 - check: Functional behaviour is described as use cases or user stories, and each has
@@ -34,7 +31,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: "Users can manage invoices."
 
 ## FRD-04: Business rules stated explicitly
-- category: Requirements Quality
 - weight: medium
 - critical: false
 - check: Business rules (calculations, conditions, thresholds, policies) are stated
@@ -43,7 +39,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: "Approval rules will follow company policy."
 
 ## FRD-05: Data requirements
-- category: Data
 - weight: medium
 - critical: false
 - check: Key data entities and fields are listed with type, mandatory/optional, and
@@ -52,7 +47,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: "The system will store invoice data."
 
 ## FRD-06: Interfaces and integrations
-- category: Integration
 - weight: medium
 - critical: false
 - check: Each interface with another system names the system, the data exchanged, the
@@ -61,7 +55,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: "The system will integrate with the ERP."
 
 ## FRD-07: UI and reporting requirements
-- category: Requirements Quality
 - weight: low
 - critical: false
 - check: Screens, key UI behaviours, and reports are described (wireframes referenced, or
@@ -70,7 +63,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: No mention of screens or reports.
 
 ## FRD-08: Error and exception handling
-- category: Requirements Quality
 - weight: medium
 - critical: false
 - check: The document states what happens when things go wrong: validation failures,
@@ -79,7 +71,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: Only the happy path is described.
 
 ## FRD-09: Measurable non-functional requirements
-- category: Non-Functional
 - weight: high
 - critical: false
 - check: Non-functional requirements (performance, security, availability, accessibility)
@@ -88,7 +79,6 @@ description: Describes in detail what the system must do to meet the business re
 - fail_example: "The system must be secure and perform well."
 
 ## FRD-10: Assumptions and dependencies
-- category: Governance
 - weight: low
 - critical: false
 - check: Assumptions and dependencies (other systems, teams, data, decisions) are listed.

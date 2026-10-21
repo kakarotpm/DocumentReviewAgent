@@ -6,7 +6,6 @@ description: Describes the future-state process, what changes from today, and ho
 ---
 
 ## TOBE-01: Document control and As-Is reference
-- category: Structure
 - weight: low
 - critical: false
 - check: The document has a title, version, author, date and revision history, and
@@ -15,7 +14,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: No version or date, and no mention of the As-Is document.
 
 ## TOBE-02: Future-state process map
-- category: Structure
 - weight: medium
 - critical: false
 - check: A future-state process map or swimlane diagram is included or clearly referenced.
@@ -23,7 +21,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: No diagram and no reference to one.
 
 ## TOBE-03: What changes and why
-- category: Change
 - weight: high
 - critical: true
 - check: The document clearly states what is different from the As-Is process (steps
@@ -33,7 +30,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: A To-Be process described on its own with no comparison to today.
 
 ## TOBE-04: Pain points addressed
-- category: Change
 - weight: high
 - critical: true
 - check: Each pain point from the As-Is document is listed with how the To-Be process
@@ -42,7 +38,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: Pain points are not mentioned.
 
 ## TOBE-05: Role and responsibility changes
-- category: Roles
 - weight: medium
 - critical: false
 - check: Changes to who does what are stated: new, removed or changed roles and
@@ -51,7 +46,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: Roles are not discussed.
 
 ## TOBE-06: System changes
-- category: Systems
 - weight: medium
 - critical: false
 - check: New systems, system changes, and retired tools are listed.
@@ -59,7 +53,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: No mention of systems.
 
 ## TOBE-07: Controls and compliance
-- category: Governance
 - weight: medium
 - critical: false
 - check: Controls and compliance checkpoints in the new process are identified (approvals,
@@ -68,7 +61,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: No controls mentioned.
 
 ## TOBE-08: Target KPIs against baseline
-- category: Metrics
 - weight: high
 - critical: false
 - check: Target KPIs are stated and compared with the As-Is baseline values. Targets
@@ -77,7 +69,6 @@ description: Describes the future-state process, what changes from today, and ho
 - fail_example: "The process will be faster."
 
 ## TOBE-09: Change impact and transition
-- category: Change
 - weight: medium
 - critical: false
 - check: The document describes how the organisation moves to the new process: who is

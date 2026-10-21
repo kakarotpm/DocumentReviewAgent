@@ -13,8 +13,8 @@ NEW_TYPE = {
     "description": "How data moves to the new system.",
     "pass_threshold": 75,
     "rules": [
-        {"id": "DMP-01", "title": "Source to target mapping", "category": "Data", "weight": "high", "critical": True, "check": "Every field is mapped."},
-        {"id": "DMP-02", "title": "Rollback plan", "category": "Risk", "weight": "medium", "critical": False, "check": "A rollback plan exists."},
+        {"id": "DMP-01", "title": "Source to target mapping", "weight": "high", "critical": True, "check": "Every field is mapped."},
+        {"id": "DMP-02", "title": "Rollback plan", "weight": "medium", "critical": False, "check": "A rollback plan exists."},
     ],
 }
 
@@ -84,7 +84,7 @@ def test_edit_weight_and_critical_creates_new_version(client):
 
 def test_add_and_delete_rules(client):
     body = brd(client)
-    body["rules"].append({"id": "BRD-11", "title": "Glossary", "category": "Structure", "weight": "low", "critical": False, "check": "Terms are defined."})
+    body["rules"].append({"id": "BRD-11", "title": "Glossary", "weight": "low", "critical": False, "check": "Terms are defined."})
     body["rules"] = [r for r in body["rules"] if r["id"] != "BRD-09"]
     detail = save_brd(client, body).json()
     assert [r["id"] for r in detail["rules"]][-2:] == ["BRD-10", "BRD-11"]
@@ -133,7 +133,7 @@ def test_md_upload_for_new_type_previews_without_saving(client):
 def test_md_upload_shows_changes_to_existing_type(client):
     md = client.get("/api/document-types/brd/export").text
     md = md.replace("- weight: low\n- critical: false\n- check: Key risks", "- weight: high\n- critical: true\n- check: Key risks")
-    md = md.replace("## BRD-10", "## BRD-11: Glossary\n- category: Structure\n- weight: low\n- check: Terms defined.\n\n## BRD-10")
+    md = md.replace("## BRD-10", "## BRD-11: Glossary\n- weight: low\n- check: Terms defined.\n\n## BRD-10")
     preview = md_upload(client, md).json()
     assert preview["mode"] == "update"
     diff = preview["diff"]
@@ -185,7 +185,7 @@ def fake_ai(monkeypatch):
 
 
 def proposed(rule_id, title, weight="medium", critical=False):
-    return AIProposedRule(id=rule_id, title=title, category="General", weight=weight, critical=critical, check=f"Check {title}")
+    return AIProposedRule(id=rule_id, title=title, weight=weight, critical=critical, check=f"Check {title}")
 
 
 def test_prompt_change_keeps_ids_and_numbers_new_rules(client, fake_ai):

@@ -4,14 +4,14 @@ from app.schemas import Rule
 from app.services.scoring import calculate_score
 
 
-def rule(rule_id, weight="medium", critical=False, category="General"):
-    return Rule(id=rule_id, title=rule_id, category=category, weight=weight, critical=critical, check="x")
+def rule(rule_id, weight="medium", critical=False):
+    return Rule(id=rule_id, title=rule_id, weight=weight, critical=critical, check="x")
 
 
 RULES = [
-    rule("R-1", "high", critical=True, category="Scope"),  # 3 points
-    rule("R-2", "medium", category="Scope"),  # 2 points
-    rule("R-3", "low", category="Structure"),  # 1 point
+    rule("R-1", "high", critical=True),  # 3 points
+    rule("R-2", "medium"),  # 2 points
+    rule("R-3", "low"),  # 1 point
 ]
 
 
@@ -66,13 +66,6 @@ def test_halves_round_up():
     for i in range(7):
         statuses[f"Q{i}"] = "not_met"  # 33 of 40 points = 82.5%
     assert calculate_score(rules, statuses, 80).score == 83
-
-
-def test_category_breakdown():
-    result = calculate_score(RULES, {"R-1": "met", "R-2": "not_met", "R-3": "partially_met"}, 80)
-    by_name = {c.category: c for c in result.categories}
-    assert (by_name["Scope"].points_earned, by_name["Scope"].points_possible) == (3, 5)
-    assert (by_name["Structure"].points_earned, by_name["Structure"].points_possible) == (0.5, 1)
 
 
 def test_missing_result_is_an_error():

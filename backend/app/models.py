@@ -124,7 +124,6 @@ class RuleResult(Base):
     review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id"))
     rule_id: Mapped[str] = mapped_column(String(20))
     rule_title: Mapped[str] = mapped_column(String(300))
-    category: Mapped[str] = mapped_column(String(100))
     weight: Mapped[str] = mapped_column(String(10))  # high / medium / low
     critical: Mapped[bool]
     status: Mapped[str] = mapped_column(String(20))  # met / partially_met / not_met

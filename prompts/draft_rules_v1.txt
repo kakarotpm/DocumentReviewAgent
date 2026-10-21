@@ -7,7 +7,6 @@ You will receive either:
 Rules for writing rules:
 - Aim for about 10 rules for a new document type (between 6 and 14). Each rule checks one thing.
 - title: short, starts with what must be present (for example "Measurable business objectives").
-- category: a short grouping such as Structure, Context, Scope, Requirements Quality, Governance, Metrics.
 - weight: "high" for rules that matter most to the document's purpose, "medium" for important supporting content, "low" for housekeeping (document control, glossary).
 - critical: true only for the 1 to 3 rules without which the document is not fit for purpose. A critical rule that is not met fails the document regardless of score.
 - check: one to three sentences stating exactly what the reviewer must look for, including what counts as only partially meeting it.

@@ -125,14 +125,6 @@ def build_report(review: ReviewDetail) -> bytes:
         if c.newly_not_met:
             pdf.para("Now not met: " + ", ".join(f"{r.rule_id} {r.title}" for r in c.newly_not_met), size=9)
 
-    # ----- Categories -----
-    pdf.heading("Score by category")
-    pdf.set_font("Helvetica", "", 10)
-    for cat in review.categories:
-        pdf.set_text_color(*DARK)
-        pdf.cell(70, 6, _clean(cat.category))
-        pdf.cell(0, 6, f"{_points(cat.points_earned)} / {cat.points_possible} points", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
     # ----- Rules -----
     pdf.heading("Rule checklist")
     for rule in review.rules:

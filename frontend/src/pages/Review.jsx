@@ -210,23 +210,28 @@ function Results({ review }) {
               </div>
             </Card>
           )}
-          <Card title="Score by category">
-            <ul className="space-y-3">
-              {review.categories.map((cat) => {
-                const pct = cat.points_possible ? (cat.points_earned / cat.points_possible) * 100 : 0;
-                return (
-                  <li key={cat.category}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span>{cat.category}</span>
-                      <span className="text-slate-500">{formatPoints(cat.points_earned)} / {cat.points_possible} pts</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+          <Card title="Rules at a glance">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                ["met", "Met", "text-emerald-700 dark:text-emerald-400"],
+                ["partially_met", "Partially met", "text-amber-700 dark:text-amber-400"],
+                ["not_met", "Not met", "text-red-700 dark:text-red-400"],
+              ].map(([status, label, color]) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className="rounded-lg border border-slate-200 p-3 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                  title={`Show ${label.toLowerCase()} rules in the checklist`}
+                >
+                  <p className={`text-2xl font-semibold ${color}`}>{review.rules.filter((r) => r.status === status).length}</p>
+                  <p className="mt-0.5"><RuleStatusBadge status={status} /></p>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              {review.rules.length} rules checked · {suggestions.length} suggestions. Click a number to filter the rule checklist below.
+            </p>
           </Card>
         </div>
       </div>
@@ -294,9 +299,7 @@ function Results({ review }) {
                   <td className="py-3 pr-3">
                     <span className="font-mono text-xs text-slate-500">{r.rule_id}</span>
                     <p className="font-medium">{r.title}</p>
-                    <p className="mt-1 flex flex-wrap gap-1 text-xs text-slate-500">
-                      {r.category} {r.critical && <CriticalBadge />}
-                    </p>
+                    {r.critical && <p className="mt-1"><CriticalBadge /></p>}
                   </td>
                   <td className="py-3 pr-3"><RuleStatusBadge status={r.status} /></td>
                   <td className="whitespace-nowrap py-3 pr-3">{formatPoints(r.points_earned)} / {r.points_possible}</td>

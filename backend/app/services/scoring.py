@@ -6,19 +6,12 @@
     Pass            = score >= pass threshold AND no critical rule is Not Met
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.schemas import Rule
 
 WEIGHT_POINTS = {"high": 3, "medium": 2, "low": 1}
 STATUS_CREDIT = {"met": 1.0, "partially_met": 0.5, "not_met": 0.0}
-
-
-@dataclass
-class CategoryScore:
-    category: str
-    points_earned: float
-    points_possible: int
 
 
 @dataclass
@@ -28,7 +21,6 @@ class ScoreResult:
     critical_failures: list[str]  # IDs of critical rules that were Not Met
     points_earned: dict[str, float]  # per rule ID
     points_possible: dict[str, int]  # per rule ID
-    categories: list[CategoryScore] = field(default_factory=list)
 
 
 def calculate_score(rules: list[Rule], statuses: dict[str, str], pass_threshold: int) -> ScoreResult:
@@ -44,13 +36,9 @@ def calculate_score(rules: list[Rule], statuses: dict[str, str], pass_threshold:
 
     earned: dict[str, float] = {}
     possible: dict[str, int] = {}
-    categories: dict[str, CategoryScore] = {}
     for rule in rules:
         possible[rule.id] = WEIGHT_POINTS[rule.weight]
         earned[rule.id] = possible[rule.id] * STATUS_CREDIT[statuses[rule.id]]
-        category = categories.setdefault(rule.category, CategoryScore(rule.category, 0, 0))
-        category.points_earned += earned[rule.id]
-        category.points_possible += possible[rule.id]
 
     # int(x + 0.5) rounds halves up (Python's round() would turn 82.5 into 82).
     score = int(sum(earned.values()) / sum(possible.values()) * 100 + 0.5)
@@ -61,5 +49,4 @@ def calculate_score(rules: list[Rule], statuses: dict[str, str], pass_threshold:
         critical_failures=critical_failures,
         points_earned=earned,
         points_possible=possible,
-        categories=list(categories.values()),
     )

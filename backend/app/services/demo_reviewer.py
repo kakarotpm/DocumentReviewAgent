@@ -29,7 +29,7 @@ def _key_terms(rule: Rule) -> list[str]:
         stem = word[:6] if len(word) > 6 else word.rstrip("s")
         if stem not in terms:
             terms.append(stem)
-    return terms or [rule.category.lower()[:6]]
+    return terms or [rule.title.lower()[:6]]
 
 
 def _find_line(lines: list[str], term: str) -> tuple[str, str] | None:

@@ -139,7 +139,7 @@ def draft_rules(instruction: str, existing: Rulebook | None, display_name: str |
         user = f"Create rules for a NEW document type called: {display_name or 'Custom document'}\n\n<instruction>\n{instruction}\n</instruction>"
     else:
         current = "\n\n".join(
-            f"id: {r.id}\ntitle: {r.title}\ncategory: {r.category}\nweight: {r.weight}\ncritical: {str(r.critical).lower()}\n"
+            f"id: {r.id}\ntitle: {r.title}\nweight: {r.weight}\ncritical: {str(r.critical).lower()}\n"
             f"check: {r.check}\npass_example: {r.pass_example or ''}\nfail_example: {r.fail_example or ''}"
             for r in existing.rules
         )
