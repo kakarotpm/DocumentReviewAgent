@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.config import settings
-from app.schemas import AIProposedRule, AIProposedRulebook
+from app.schemas import AIProposedRule, AIProposedRulebook, AIProposedSingleRule
 from app.services import llm
 from app.services.rulebook_editor import id_prefix, key_from_name
 
@@ -166,14 +166,25 @@ def test_non_md_upload_rejected(client):
 
 
 def test_prompt_without_api_key_explains_what_to_do(client):
-    response = client.post("/api/document-types/prompt-preview", json={"instruction": "Add a glossary rule", "target_key": "brd"})
+    response = client.post("/api/document-types/brd/rules/draft", json={"instruction": "Add a glossary rule"})
     assert response.status_code == 400
+    assert "no Anthropic API key is set" in response.json()["detail"]["message"]
+    response = client.post("/api/document-types/prompt-preview", json={"instruction": "x", "display_name": "Data Migration Plan"})
     assert "no Anthropic API key is set" in response.json()["detail"]["message"]
 
 
 def test_prompt_needs_a_name_for_new_type(client):
-    response = client.post("/api/document-types/prompt-preview", json={"instruction": "x"})
+    response = client.post("/api/document-types/prompt-preview", json={"instruction": "x", "display_name": " "})
     assert "Please give the new document type a name." in response.json()["detail"]["message"]
+
+
+def test_draft_rule_errors(client):
+    unknown_rule = client.post("/api/document-types/brd/rules/draft", json={"instruction": "x", "rule_id": "BRD-99"})
+    assert "There's no rule BRD-99" in unknown_rule.json()["detail"]["message"]
+    unknown_type = client.post("/api/document-types/nope/rules/draft", json={"instruction": "x"})
+    assert "No document type called 'nope'" in unknown_type.json()["detail"]["message"]
+    empty = client.post("/api/document-types/brd/rules/draft", json={"instruction": "  "})
+    assert "Please describe the rule" in empty.json()["detail"]["message"]
 
 
 @pytest.fixture
@@ -188,18 +199,27 @@ def proposed(rule_id, title, weight="medium", critical=False):
     return AIProposedRule(id=rule_id, title=title, weight=weight, critical=critical, check=f"Check {title}")
 
 
-def test_prompt_change_keeps_ids_and_numbers_new_rules(client, fake_ai):
-    current = brd(client)["rules"]
-    kept = [proposed(r["id"], r["title"], r["weight"], r["critical"]) for r in current if r["id"] != "BRD-09"]
-    fake_ai.proposal = AIProposedRulebook(
-        display_name="ignored", description="d", summary="Added a glossary rule and removed risks.",
-        rules=kept + [proposed(None, "Glossary", "low")],
-    )
-    preview = client.post("/api/document-types/prompt-preview", json={"instruction": "Add glossary, drop risks", "target_key": "brd"}).json()
-    assert preview["summary"] == "Added a glossary rule and removed risks."
-    assert preview["rulebook"]["display_name"] == "Business Requirements Document"  # name kept
-    assert [r["id"] for r in preview["diff"]["added"]] == ["BRD-11"]
-    assert [r["id"] for r in preview["diff"]["removed"]] == ["BRD-09"]
+def single(title, weight="medium", critical=False, summary="Done."):
+    return AIProposedSingleRule(title=title, weight=weight, critical=critical, check=f"Check {title}", summary=summary)
+
+
+def test_ai_drafts_a_new_rule_with_the_next_id(client, fake_ai):
+    fake_ai.proposal = single("Glossary", "low", summary="Added a glossary rule.")
+    result = client.post("/api/document-types/brd/rules/draft", json={"instruction": "Add a glossary rule"}).json()
+    assert result["rule"]["id"] == "BRD-11"
+    assert result["rule"]["title"] == "Glossary"
+    assert result["summary"] == "Added a glossary rule."
+    assert result["original"] is None
+    assert brd(client)["version"] == 1  # nothing saved
+
+
+def test_ai_changes_one_rule_and_keeps_its_id(client, fake_ai):
+    fake_ai.proposal = single("Risks with mitigations", "high", critical=True, summary="Made risks critical.")
+    result = client.post("/api/document-types/brd/rules/draft", json={"instruction": "Make this critical", "rule_id": "BRD-09"}).json()
+    assert result["rule"]["id"] == "BRD-09"
+    assert result["rule"]["critical"] is True
+    assert result["original"]["id"] == "BRD-09" and result["original"]["critical"] is False
+    assert brd(client)["version"] == 1  # nothing saved
 
 
 def test_prompt_new_type(client, fake_ai):

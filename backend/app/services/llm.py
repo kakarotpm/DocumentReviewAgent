@@ -12,7 +12,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from app.config import PROJECT_ROOT, settings
-from app.schemas import AIProposedRulebook, AIReviewOutput, Rule, Rulebook
+from app.schemas import AIProposedRulebook, AIProposedSingleRule, AIReviewOutput, Rule, Rulebook
 from app.services import demo_reviewer
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
 EVALUATE_PROMPT = "evaluate_rules_v1"
 DRAFT_RULES_PROMPT = "draft_rules_v1"
+DRAFT_RULE_PROMPT = "draft_rule_v1"
 MAX_TOKENS = 16000
 
 T = TypeVar("T", bound=BaseModel)
@@ -130,25 +131,33 @@ def evaluate_rules(document_text: str, rules: list[Rule], document_type_name: st
     return output, settings.anthropic_model, EVALUATE_PROMPT
 
 
-def draft_rules(instruction: str, existing: Rulebook | None, display_name: str | None) -> AIProposedRulebook:
-    """Ask the AI to write rules for a new type, or to change an existing rulebook."""
+def _rule_as_text(rule: Rule) -> str:
+    return (
+        f"id: {rule.id}\ntitle: {rule.title}\nweight: {rule.weight}\ncritical: {str(rule.critical).lower()}\n"
+        f"check: {rule.check}\npass_example: {rule.pass_example or ''}\nfail_example: {rule.fail_example or ''}"
+    )
+
+
+def draft_rules(instruction: str, display_name: str) -> AIProposedRulebook:
+    """Ask the AI to write a full set of rules for a NEW document type."""
     if not ai_available():
         raise AINotConfigured()
-
-    if existing is None:
-        user = f"Create rules for a NEW document type called: {display_name or 'Custom document'}\n\n<instruction>\n{instruction}\n</instruction>"
-    else:
-        current = "\n\n".join(
-            f"id: {r.id}\ntitle: {r.title}\nweight: {r.weight}\ncritical: {str(r.critical).lower()}\n"
-            f"check: {r.check}\npass_example: {r.pass_example or ''}\nfail_example: {r.fail_example or ''}"
-            for r in existing.rules
-        )
-        user = (
-            f"EXISTING rulebook: {existing.display_name}\nDescription: {existing.description}\n\n"
-            f"<rules>\n{current}\n</rules>\n\nChange it as follows.\n<instruction>\n{instruction}\n</instruction>"
-        )
+    user = f"Create rules for a NEW document type called: {display_name}\n\n<instruction>\n{instruction}\n</instruction>"
 
     def problem(output: AIProposedRulebook) -> str | None:
         return None if output.rules else "no rules were returned"
 
     return _ask_claude(load_prompt(DRAFT_RULES_PROMPT), user, AIProposedRulebook, problem)
+
+
+def draft_rule(instruction: str, rulebook: Rulebook, existing: Rule | None) -> AIProposedSingleRule:
+    """Ask the AI to write one new rule for a rulebook, or to change one existing rule."""
+    if not ai_available():
+        raise AINotConfigured()
+    others = "\n\n".join(_rule_as_text(r) for r in rulebook.rules if existing is None or r.id != existing.id)
+    context = f"Document type: {rulebook.display_name}\nDescription: {rulebook.description}\n\n<other_rules>\n{others}\n</other_rules>\n\n"
+    if existing is None:
+        user = context + f"Write a NEW rule as described.\n<instruction>\n{instruction}\n</instruction>"
+    else:
+        user = context + f"<rule_to_change>\n{_rule_as_text(existing)}\n</rule_to_change>\n\nChange it as follows.\n<instruction>\n{instruction}\n</instruction>"
+    return _ask_claude(load_prompt(DRAFT_RULE_PROMPT), user, AIProposedSingleRule, lambda output: None)

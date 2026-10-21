@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.models import DocumentType, RulebookVersion
 from app.schemas import (
     DocumentTypeDetail,
+    DraftRuleRequest,
+    DraftRuleResult,
     PromptRulesRequest,
     Rule,
     RuleChange,
@@ -233,51 +235,57 @@ def preview_markdown(session: Session, text: str, filename: str, target_key: str
 
 
 def preview_prompt(session: Session, request: PromptRulesRequest) -> RulebookPreview:
-    """Ask the AI to draft a new type or change an existing one, and show the result."""
+    """Ask the AI to draft every rule for a NEW document type, and show the result."""
     instruction = request.instruction.strip()
+    name = request.display_name.strip()
+    if not name:
+        raise EditError("Please give the new document type a name.")
     if not instruction:
-        raise EditError("Please describe the rules you want.")
-
-    existing = None
-    if request.target_key:
-        existing = current_rulebook(session, request.target_key)
-        if existing is None:
-            raise EditError(f"No document type called '{request.target_key}'.")
-        key = existing.doc_type
-    else:
-        name = (request.display_name or "").strip()
-        if not name:
-            raise EditError("Please give the new document type a name.")
-        key = key_from_name(name)
-        if _find_type(session, key):
-            raise EditError(f"A document type called '{name}' already exists. Choose a different name, or open it to change it.")
+        raise EditError("Please describe what a good document of this type must contain.")
+    key = key_from_name(name)
+    if _find_type(session, key):
+        raise EditError(f"A document type called '{name}' already exists. Choose a different name, or open it to change it.")
 
     try:
-        proposal = llm.draft_rules(instruction, existing, request.display_name)
+        proposal = llm.draft_rules(instruction, name)
     except llm.AIError as e:
         raise EditError(str(e))
 
-    # Keep IDs the AI kept; give new rules the next free IDs in the same style.
-    prefix = existing.rules[0].id.split("-")[0] if existing and existing.rules else id_prefix(request.display_name or "")
-    taken = {r.id for r in existing.rules} if existing else set()
-    new_ids = iter(_next_ids(prefix, taken, sum(1 for p in proposal.rules if p.id not in taken)))
+    ids = _next_ids(id_prefix(name), set(), len(proposal.rules))
     rules = [
-        Rule(
-            id=p.id if p.id in taken else next(new_ids),
-            title=p.title,
-            weight=p.weight,
-            critical=p.critical,
-            check=p.check,
-            pass_example=p.pass_example,
-            fail_example=p.fail_example,
-        )
-        for p in proposal.rules
+        Rule(id=rule_id, title=p.title, weight=p.weight, critical=p.critical, check=p.check,
+             pass_example=p.pass_example, fail_example=p.fail_example)
+        for rule_id, p in zip(ids, proposal.rules)
     ]
-    rulebook = Rulebook(
-        doc_type=key,
-        display_name=existing.display_name if existing else (request.display_name or proposal.display_name).strip(),
-        description=proposal.description if not existing else (proposal.description or existing.description),
-        pass_threshold=existing.pass_threshold if existing else 80,
-        rules=rules,
-    )
+    rulebook = Rulebook(doc_type=key, display_name=name, description=proposal.description, pass_threshold=80, rules=rules)
     return _preview(session, rulebook, proposal.summary)
+
+
+def draft_rule(session: Session, key: str, request: DraftRuleRequest) -> DraftRuleResult:
+    """Ask the AI to write one new rule, or change one existing rule. Nothing is saved:
+    the user reviews the draft, can edit it, and then saves the rulebook as usual."""
+    rulebook = current_rulebook(session, key)
+    if rulebook is None:
+        raise EditError(f"No document type called '{key}'.")
+    instruction = request.instruction.strip()
+    if not instruction:
+        raise EditError("Please describe the rule, or the change you want.")
+    original = None
+    if request.rule_id:
+        original = next((r for r in rulebook.rules if r.id == request.rule_id), None)
+        if original is None:
+            raise EditError(f"There's no rule {request.rule_id} in this rulebook. It may have been deleted.")
+
+    try:
+        proposal = llm.draft_rule(instruction, rulebook, original)
+    except llm.AIError as e:
+        raise EditError(str(e))
+
+    if original:
+        rule_id = original.id
+    else:
+        prefix = rulebook.rules[0].id.split("-")[0] if rulebook.rules else id_prefix(rulebook.display_name)
+        rule_id = _next_ids(prefix, {r.id for r in rulebook.rules}, 1)[0]
+    rule = Rule(id=rule_id, title=proposal.title, weight=proposal.weight, critical=proposal.critical,
+                check=proposal.check, pass_example=proposal.pass_example, fail_example=proposal.fail_example)
+    return DraftRuleResult(rule=rule, summary=proposal.summary, original=original)

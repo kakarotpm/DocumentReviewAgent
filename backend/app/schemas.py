@@ -120,6 +120,16 @@ class AIProposedRule(BaseModel):
     fail_example: str | None = None
 
 
+class AIProposedSingleRule(BaseModel):
+    title: str
+    weight: Weight
+    critical: bool
+    check: str
+    pass_example: str | None = None
+    fail_example: str | None = None
+    summary: str
+
+
 class AIProposedRulebook(BaseModel):
     display_name: str
     description: str
@@ -250,9 +260,23 @@ class SaveRulebookRequest(BaseModel):
 
 
 class PromptRulesRequest(BaseModel):
+    """Describe a NEW document type; the AI drafts all its rules."""
+
     instruction: str
-    target_key: str | None = None  # change this existing type; None = create a new type
-    display_name: str | None = None  # name for a new type
+    display_name: str
+
+
+class DraftRuleRequest(BaseModel):
+    """Describe one new rule, or (with rule_id) how to change an existing rule."""
+
+    instruction: str
+    rule_id: str | None = None
+
+
+class DraftRuleResult(BaseModel):
+    rule: Rule
+    summary: str
+    original: Rule | None  # the rule before the change; None for a new rule
 
 
 class RulebookVersionInfo(BaseModel):

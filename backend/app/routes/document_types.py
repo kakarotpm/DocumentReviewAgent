@@ -8,6 +8,8 @@ from app.db import get_session
 from app.schemas import (
     DocumentTypeDetail,
     DocumentTypeSummary,
+    DraftRuleRequest,
+    DraftRuleResult,
     PromptRulesRequest,
     RulebookPreview,
     RulebookVersionInfo,
@@ -65,7 +67,7 @@ async def preview_markdown_upload(
 
 @router.post("/prompt-preview", response_model=RulebookPreview)
 def preview_prompt(request: PromptRulesRequest, session: Session = Depends(get_session)):
-    """Ask the AI to draft a new type or change an existing one. Nothing is saved."""
+    """Ask the AI to draft all the rules for a NEW document type. Nothing is saved."""
     try:
         return rulebook_editor.preview_prompt(session, request)
     except EditError as e:
@@ -100,6 +102,15 @@ def list_versions(key: str, session: Session = Depends(get_session)):
     if versions is None:
         raise _not_found(key)
     return versions
+
+
+@router.post("/{key}/rules/draft", response_model=DraftRuleResult)
+def draft_rule(key: str, request: DraftRuleRequest, session: Session = Depends(get_session)):
+    """Ask the AI to write one new rule, or change one rule (give its rule_id). Nothing is saved."""
+    try:
+        return rulebook_editor.draft_rule(session, key, request)
+    except EditError as e:
+        raise _bad_request(e)
 
 
 @router.get("/{key}/export", response_class=PlainTextResponse)
