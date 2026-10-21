@@ -5,9 +5,9 @@ import { idPrefix, keyFromName, nextRuleId, rememberName, savedName } from "../l
 import Icon from "./Icon";
 import { Button, Card, ErrorMessage, Field } from "./ui";
 
-export default function RuleEditor({ initial, isNew = false, onSave, onCancel, saving, error, saveLabel = "Save changes" }) {
+export default function RuleEditor({ initial, isNew = false, openRuleId = null, onSave, onCancel, saving, error, saveLabel = "Save changes" }) {
   const [rulebook, setRulebook] = useState(initial);
-  const [openId, setOpenId] = useState(null); // the rule whose details are expanded
+  const [openId, setOpenId] = useState(openRuleId); // the rule whose details are expanded
   const [name, setName] = useState(savedName());
   const [note, setNote] = useState("");
 

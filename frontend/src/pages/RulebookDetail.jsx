@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import ChangePreview from "../components/ChangePreview";
 import RuleEditor from "../components/RuleEditor";
 import RuleList from "../components/RuleList";
-import { MarkdownUpload, PromptRules } from "../components/RulebookSources";
+import { MarkdownUpload } from "../components/RulebookSources";
 import { Badge, Button, Card, EmptyState, ErrorMessage, Notice, PageHeader, Spinner } from "../components/ui";
 import { api, useFetch } from "../lib/api";
 import { formatDateTime } from "../lib/format";
@@ -90,7 +90,6 @@ export default function RulebookDetail() {
             <>
               <Button icon="pencil" onClick={() => editFrom(toRulebook(detail))}>Edit rules</Button>
               <Button variant="secondary" icon="upload" onClick={() => go("upload")}>Upload .md</Button>
-              <Button variant="secondary" icon="sparkles" onClick={() => go("prompt")}>Change with a prompt</Button>
               <a
                 href={`/api/document-types/${key}/export`}
                 download={`${key}.md`}
@@ -109,7 +108,6 @@ export default function RulebookDetail() {
         <RuleEditor initial={editStart} onSave={save} onCancel={() => go("view")} saving={saving} error={saveError} />
       )}
       {mode === "upload" && <MarkdownUpload targetKey={key} onPreview={showPreview} onCancel={() => go("view")} />}
-      {mode === "prompt" && <PromptRules targetKey={key} onPreview={showPreview} onCancel={() => go("view")} />}
       {mode === "preview" && preview && (
         <ChangePreview preview={preview} onSave={save} onEdit={editFrom} onCancel={() => go("view")} saving={saving} error={saveError} />
       )}
