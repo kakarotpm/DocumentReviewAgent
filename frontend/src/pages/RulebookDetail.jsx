@@ -1,13 +1,23 @@
-// One rulebook: view its rules, change them (by hand, by .md upload, or by prompt), download it, see its history.
+// One rulebook: view its rules; add, edit or delete a rule by hand or with AI; upload/download .md; see its history.
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import ChangePreview from "../components/ChangePreview";
 import RuleEditor from "../components/RuleEditor";
 import RuleList from "../components/RuleList";
-import { MarkdownUpload } from "../components/RulebookSources";
+import { MarkdownUpload, RuleAIDraft } from "../components/RulebookSources";
 import { Badge, Button, Card, EmptyState, ErrorMessage, Notice, PageHeader, Spinner } from "../components/ui";
 import { api, useFetch } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime, idPrefix, nextRuleId } from "../lib/format";
+
+const RULE_FIELDS = ["title", "weight", "critical", "check", "pass_example", "fail_example"];
+
+// A one-rule change in the shape ChangePreview expects (the same shape the backend uses).
+function oneRuleDiff({ added = [], removed = [], before = null, after = null }) {
+  const changed = before && after
+    ? [{ rule_id: after.id, before, after, changed_fields: RULE_FIELDS.filter((f) => (before[f] || null) !== (after[f] || null)) }]
+    : [];
+  return { added, removed, changed, settings_changed: [] };
+}
 
 function toRulebook(detail) {
   const { key, display_name, description, pass_threshold, rules } = detail;
@@ -18,10 +28,12 @@ export default function RulebookDetail() {
   const { key } = useParams();
   const { data: detail, error, loading, reload } = useFetch(`/api/document-types/${key}`);
   const history = useFetch(`/api/document-types/${key}/versions`);
-  const [mode, setMode] = useState("view"); // view | edit | upload | prompt | preview
+  const [mode, setMode] = useState("view"); // view | edit | upload | ai | preview
   const [tab, setTab] = useState("rules");
   const [preview, setPreview] = useState(null);
   const [editStart, setEditStart] = useState(null);
+  const [openRuleId, setOpenRuleId] = useState(null); // rule to expand when the editor opens
+  const [aiRule, setAiRule] = useState(null); // rule the AI is changing; null = AI adds a new rule
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [savedMessage, setSavedMessage] = useState("");
@@ -64,9 +76,43 @@ export default function RulebookDetail() {
     go("preview");
   };
 
-  const editFrom = (rulebook) => {
+  const editFrom = (rulebook, ruleId = null) => {
     setEditStart(rulebook);
+    setOpenRuleId(ruleId);
     go("edit");
+  };
+
+  const current = () => toRulebook(detail);
+
+  // Add a blank rule at the end and open the editor on it.
+  const addRule = () => {
+    const rb = current();
+    const id = nextRuleId(rb.rules, idPrefix(rb.display_name));
+    const blank = { id, title: "", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
+    editFrom({ ...rb, rules: [...rb.rules, blank] }, id);
+  };
+
+  const askAI = (rule) => {
+    setAiRule(rule);
+    go("ai");
+  };
+
+  // The AI's draft: show it as a change to review before saving.
+  const showDraft = ({ rule, original, summary }) => {
+    const rb = current();
+    const rules = original ? rb.rules.map((r) => (r.id === original.id ? rule : r)) : [...rb.rules, rule];
+    const diff = original ? oneRuleDiff({ before: original, after: rule }) : oneRuleDiff({ added: [rule] });
+    showPreview({ mode: "update", rulebook: { ...rb, rules }, diff, summary });
+  };
+
+  const deleteRule = (rule) => {
+    const rb = current();
+    showPreview({
+      mode: "update",
+      rulebook: { ...rb, rules: rb.rules.filter((r) => r.id !== rule.id) },
+      diff: oneRuleDiff({ removed: [rule] }),
+      summary: `Delete ${rule.id} "${rule.title}". Past reviews keep the rules they used.`,
+    });
   };
 
   const criticalCount = detail.rules.filter((r) => r.critical).length;
@@ -88,7 +134,9 @@ export default function RulebookDetail() {
         actions={
           mode === "view" && (
             <>
-              <Button icon="pencil" onClick={() => editFrom(toRulebook(detail))}>Edit rules</Button>
+              <Button icon="plus" onClick={addRule}>Add rule</Button>
+              <Button variant="secondary" icon="sparkles" onClick={() => askAI(null)}>Add rule with AI</Button>
+              <Button variant="secondary" icon="pencil" onClick={() => editFrom(current())}>Edit all</Button>
               <Button variant="secondary" icon="upload" onClick={() => go("upload")}>Upload .md</Button>
               <a
                 href={`/api/document-types/${key}/export`}
@@ -105,8 +153,9 @@ export default function RulebookDetail() {
       {savedMessage && <div className="mb-5"><Notice tone="success" icon="check-circle">{savedMessage}</Notice></div>}
 
       {mode === "edit" && (
-        <RuleEditor initial={editStart} onSave={save} onCancel={() => go("view")} saving={saving} error={saveError} />
+        <RuleEditor initial={editStart} openRuleId={openRuleId} onSave={save} onCancel={() => go("view")} saving={saving} error={saveError} />
       )}
+      {mode === "ai" && <RuleAIDraft docKey={key} rule={aiRule} onDraft={showDraft} onCancel={() => go("view")} />}
       {mode === "upload" && <MarkdownUpload targetKey={key} onPreview={showPreview} onCancel={() => go("view")} />}
       {mode === "preview" && preview && (
         <ChangePreview preview={preview} onSave={save} onEdit={editFrom} onCancel={() => go("view")} saving={saving} error={saveError} />
@@ -129,7 +178,18 @@ export default function RulebookDetail() {
               </button>
             ))}
           </div>
-          {tab === "rules" && <RuleList rules={detail.rules} />}
+          {tab === "rules" && (
+            <RuleList
+              rules={detail.rules}
+              renderActions={(rule) => (
+                <>
+                  <Button variant="ghost" icon="pencil" onClick={() => editFrom(current(), rule.id)}>Edit</Button>
+                  <Button variant="ghost" icon="sparkles" onClick={() => askAI(rule)}>Change with AI</Button>
+                  <Button variant="danger" icon="trash" onClick={() => deleteRule(rule)} className="ml-auto">Delete</Button>
+                </>
+              )}
+            />
+          )}
           {tab === "history" && (
             <Card>
               {history.loading && <Spinner />}
