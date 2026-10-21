@@ -242,3 +242,27 @@ def test_suggestions_from_ai_are_saved(client, session, fake_claude):
     assert review["passed"] is False  # BRD-04 is critical and not met
     [suggestion] = review["rules"][3]["suggestions"]
     assert suggestion["proposed_text"] == "3.2 Out of scope"
+
+
+# ---------- PDF report ----------
+
+
+def test_pdf_report(client):
+    first = upload(client, "brd_weak.md", title="Invoice “Automation” BRD – v1")
+    second = revise(client, first["document_id"], "brd_strong.docx")
+    for review_id in (first["review_id"], second["review_id"]):
+        response = client.get(f"/api/reviews/{review_id}/report")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.content.startswith(b"%PDF")
+        assert ".pdf" in response.headers["content-disposition"]
+
+
+def test_pdf_report_errors(client, session):
+    assert client.get("/api/reviews/999/report").status_code == 404
+    review_id = upload(client)["review_id"]
+    session.get(Review, review_id).status = "processing"
+    session.commit()
+    response = client.get(f"/api/reviews/{review_id}/report")
+    assert response.status_code == 400
+    assert "once the review has finished" in response.json()["detail"]

@@ -144,6 +144,12 @@ function Results({ review }) {
     <div className="space-y-5">
       <div className="flex flex-wrap gap-2">
         {isLatest && <Button icon="upload" onClick={() => setShowUpload((v) => !v)}>Upload revised version</Button>}
+        <a
+          href={`/api/reviews/${review.id}/report`}
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <Icon name="download" /> Download report (PDF)
+        </a>
         <Button variant="secondary" icon="refresh" onClick={rerun}>Re-run review</Button>
         <Button variant="secondary" icon="folder" to="/documents">Back to Documents</Button>
       </div>
