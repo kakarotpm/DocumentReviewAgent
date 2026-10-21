@@ -42,7 +42,7 @@ def main():
         print(f"Run {run}: score {result.score} ({'Pass' if result.passed else 'Fail'})  {summary}")
 
     spread = max(scores) - min(scores)
-    print(f"\nModel: {model}\nScores: {scores}\nSpread: {spread} points -> {'OK (within 6, i.e. ±3)' if spread <= 6 else 'TOO WIDE'}")
+    print(f"\nModel: {model}\nScores: {scores}\nSpread: {spread} points -> {'OK (within +/-3)' if spread <= 6 else 'TOO WIDE'}")
 
 
 if __name__ == "__main__":
