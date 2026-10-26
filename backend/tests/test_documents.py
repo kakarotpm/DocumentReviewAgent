@@ -1,7 +1,5 @@
 from app.config import PROJECT_ROOT
 from app.models import Document, DocumentVersion
-from app.schemas import Rule, SaveRulebookRequest
-from app.services.rulebook_editor import current_rulebook, save_rulebook
 from tests.pdf_helper import make_pdf
 
 SAMPLES = PROJECT_ROOT / "samples"
@@ -77,14 +75,6 @@ def test_unknown_document(client):
 WORKBOOK = ("mapping.xlsx", (SAMPLES / "frd_mapping_sample.xlsx").read_bytes())
 
 
-def add_excel_rule(session):
-    """Give the test FRD rulebook a Part B rule (the frozen test rulebooks have none)."""
-    rulebook = current_rulebook(session, "frd")
-    excel_rule = Rule(id="FRD-XL-01", title="Field mapping", part="excel", weight="high", check="Has a Field Mapping sheet.")
-    rulebook = rulebook.model_copy(update={"rules": rulebook.rules + [excel_rule]})
-    save_rulebook(session, "frd", SaveRulebookRequest(rulebook=rulebook, changed_by="Test"))
-
-
 def upload_frd(client, workbook=None):
     files = {"file": ("frd.md", b"# FRD\n" + b"Functional requirements for invoice matching. " * 10)}
     if workbook:
@@ -92,8 +82,7 @@ def upload_frd(client, workbook=None):
     return client.post("/api/documents", files=files, data={"document_type": "frd", "uploaded_by": "Jordan"})
 
 
-def test_upload_with_workbook_keeps_its_text(client, session):
-    add_excel_rule(session)
+def test_upload_with_workbook_keeps_its_text(client, session, frd_excel_rule):
     body = upload_frd(client, WORKBOOK).json()
     assert body["workbook_filename"] == "mapping.xlsx"
     version = session.get(DocumentVersion, body["version_id"])
@@ -102,8 +91,7 @@ def test_upload_with_workbook_keeps_its_text(client, session):
     assert summary["workbook_filename"] == "mapping.xlsx"
 
 
-def test_upload_without_workbook(client, session):
-    add_excel_rule(session)
+def test_upload_without_workbook(client, session, frd_excel_rule):
     body = upload_frd(client).json()
     assert body["workbook_filename"] is None
     assert session.get(DocumentVersion, body["version_id"]).workbook_text is None
@@ -116,15 +104,13 @@ def test_workbook_rejected_when_type_has_no_excel_rules(client, session):
     assert session.query(Document).count() == 0
 
 
-def test_unusable_workbook_is_rejected(client, session):
-    add_excel_rule(session)
+def test_unusable_workbook_is_rejected(client, frd_excel_rule):
     response = upload_frd(client, ("mapping.xls", b"x" * 100))
     assert response.status_code == 400
     assert "save it as .xlsx" in response.json()["detail"]
 
 
-def test_revised_version_with_workbook(client, session):
-    add_excel_rule(session)
+def test_revised_version_with_workbook(client, frd_excel_rule):
     first = upload_frd(client, WORKBOOK).json()
     url = f"/api/documents/{first['document_id']}/versions"
     revised = client.post(url, files={"file": ("frd_v2.md", b"# FRD v2\n" + b"Revised requirements. " * 10), "workbook": WORKBOOK})

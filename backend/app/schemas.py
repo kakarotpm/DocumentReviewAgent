@@ -158,6 +158,7 @@ class SuggestionOut(BaseModel):
 class RuleResultOut(BaseModel):
     rule_id: str
     title: str
+    part: Part = "document"
     weight: str
     critical: bool
     status: str
@@ -196,9 +197,14 @@ class ReviewDetail(BaseModel):
     model_name: str | None
     prompt_version: str | None
     rulebook_version: int
-    rule_count: int
+    rule_count: int  # rules in this review (Part B rules only count when a workbook was uploaded)
     created_at: datetime
     completed_at: datetime | None
+    # Excel workbook (Part B). Subtotals are None for a part that wasn't reviewed (or before the review is complete).
+    workbook_filename: str | None = None
+    document_subtotal: int | None = None
+    excel_subtotal: int | None = None
+    excel_rules_left_out: int = 0  # Part B rules not reviewed because no workbook was uploaded
     document_id: int
     document_title: str
     document_type_key: str

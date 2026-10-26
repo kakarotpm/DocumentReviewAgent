@@ -20,12 +20,25 @@ from app.schemas import (
     VersionComparison,
 )
 from app.services import demo_reviewer, llm
-from app.services.scoring import calculate_score
+from app.services.scoring import calculate_score, part_subtotals
 
 logger = logging.getLogger(__name__)
 
 INTERRUPTED_MESSAGE = "This review was interrupted because the server restarted. Click Re-run review to try again."
 UNEXPECTED_MESSAGE = "Something went wrong while reviewing this document. Click Re-run review to try again."
+NO_RULES_MESSAGE = (
+    "This rulebook only has Excel rules (Part B), and no Excel workbook was uploaded, so there was nothing to check. "
+    "Upload a revised version together with the workbook, or add document rules (Part A) to the rulebook."
+)
+
+
+def rules_in_review(rules_json: list[dict], has_workbook: bool) -> list[Rule]:
+    """The rules a review checks: always Part A (document); Part B (Excel) only when a workbook was uploaded.
+
+    Without a workbook, Part B rules are left out of the review entirely (not counted as failed).
+    """
+    rules = [Rule(**r) for r in rules_json]
+    return rules if has_workbook else [r for r in rules if r.part == "document"]
 
 
 def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
@@ -40,12 +53,27 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
 
         version = review.document_version
         rulebook = review.rulebook_version
-        rules = [Rule(**r) for r in rulebook.rules_json]
+        type_name = version.document.document_type.display_name
+        rules = rules_in_review(rulebook.rules_json, has_workbook=version.workbook_text is not None)
+        if not rules:
+            _fail(session, review, NO_RULES_MESSAGE)
+            return
+        document_rules = [r for r in rules if r.part == "document"]
+        excel_rules = [r for r in rules if r.part == "excel"]
         try:
-            output, model_name, prompt_version = llm.evaluate_rules(
-                version.extracted_text, rules, version.document.document_type.display_name
-            )
-            statuses = {result.rule_id: result.status for result in output.results}
+            # Two separate AI calls: the document against Part A, the workbook against Part B.
+            judgements, prompt_versions = [], []
+            if document_rules:
+                output, model_name, prompt_version = llm.evaluate_rules(version.extracted_text, document_rules, type_name)
+                judgements += output.results
+                prompt_versions.append(prompt_version)
+            if excel_rules:
+                output, model_name, prompt_version = llm.evaluate_workbook(
+                    version.workbook_text, version.extracted_text, excel_rules, type_name
+                )
+                judgements += output.results
+                prompt_versions.append(prompt_version)
+            statuses = {j.rule_id: j.status for j in judgements}
             result = calculate_score(rules, statuses, rulebook.pass_threshold)
         except llm.AIError as e:
             _fail(session, review, str(e))
@@ -55,12 +83,13 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
             _fail(session, review, UNEXPECTED_MESSAGE)
             return
 
-        judgements = {j.rule_id: j for j in output.results}
+        judgements = {j.rule_id: j for j in judgements}
         for rule in rules:  # saved in rulebook order
             judgement = judgements[rule.id]
             rule_result = RuleResult(
                 rule_id=rule.id,
                 rule_title=rule.title,
+                part=rule.part,
                 weight=rule.weight,
                 critical=rule.critical,
                 status=judgement.status,
@@ -86,7 +115,7 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
         review.passed = result.passed
         review.critical_failure = bool(result.critical_failures)
         review.model_name = model_name
-        review.prompt_version = prompt_version
+        review.prompt_version = " + ".join(dict.fromkeys(prompt_versions))  # e.g. evaluate_rules_v1 + evaluate_workbook_v1
         review.status = "complete"
         review.completed_at = datetime.now(timezone.utc)
         version.document.updated_at = review.completed_at
@@ -177,6 +206,15 @@ def get_review(session: Session, review_id: int) -> ReviewDetail | None:
     version = review.document_version
     document = version.document
     rulebook = review.rulebook_version
+    has_workbook = version.workbook_text is not None
+    rule_count = len(rules_in_review(rulebook.rules_json, has_workbook))
+    subtotals = {}
+    if review.rule_results:
+        subtotals = part_subtotals(
+            {r.rule_id: r.part for r in review.rule_results},
+            {r.rule_id: r.points_earned for r in review.rule_results},
+            {r.rule_id: r.points_possible for r in review.rule_results},
+        )
 
     return ReviewDetail(
         id=review.id,
@@ -194,9 +232,13 @@ def get_review(session: Session, review_id: int) -> ReviewDetail | None:
         model_name=review.model_name,
         prompt_version=review.prompt_version,
         rulebook_version=rulebook.version_number,
-        rule_count=len(rulebook.rules_json),
+        rule_count=rule_count,
         created_at=review.created_at,
         completed_at=review.completed_at,
+        workbook_filename=version.workbook_filename,
+        document_subtotal=subtotals.get("document"),
+        excel_subtotal=subtotals.get("excel"),
+        excel_rules_left_out=len(rulebook.rules_json) - rule_count,
         document_id=document.id,
         document_title=document.title,
         document_type_key=document.document_type.key,
@@ -210,6 +252,7 @@ def get_review(session: Session, review_id: int) -> ReviewDetail | None:
             RuleResultOut(
                 rule_id=r.rule_id,
                 title=r.rule_title,
+                part=r.part,
                 weight=r.weight,
                 critical=r.critical,
                 status=r.status,

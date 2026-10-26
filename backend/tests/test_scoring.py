@@ -1,7 +1,7 @@
 import pytest
 
 from app.schemas import Rule
-from app.services.scoring import calculate_score
+from app.services.scoring import calculate_score, part_subtotals
 
 
 def rule(rule_id, weight="medium", critical=False):
@@ -76,3 +76,19 @@ def test_missing_result_is_an_error():
 def test_unknown_status_is_an_error():
     with pytest.raises(ValueError, match="Unknown status"):
         calculate_score(RULES, {"R-1": "met", "R-2": "maybe", "R-3": "met"}, 80)
+
+
+# ---------- Subtotals per part (document / Excel workbook) ----------
+
+
+def test_subtotal_per_part():
+    parts = {"R-1": "document", "R-2": "document", "XL-1": "excel"}
+    earned = {"R-1": 3, "R-2": 1, "XL-1": 0}  # document: 4 of 5 = 80; excel: 0 of 3 = 0
+    possible = {"R-1": 3, "R-2": 2, "XL-1": 3}
+    assert part_subtotals(parts, earned, possible) == {"document": 80, "excel": 0}
+
+
+def test_subtotal_rounds_halves_up_and_skips_missing_parts():
+    # 1.5 of 2 points = 75; 3.5 of 4 would be 87.5 -> 88
+    assert part_subtotals({"R-1": "document"}, {"R-1": 1.5}, {"R-1": 2}) == {"document": 75}
+    assert part_subtotals({"A": "excel", "B": "excel"}, {"A": 3, "B": 0.5}, {"A": 3, "B": 1}) == {"excel": 88}

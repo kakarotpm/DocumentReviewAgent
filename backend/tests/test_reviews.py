@@ -6,6 +6,7 @@ from app.config import PROJECT_ROOT, settings
 from app.models import Review
 from app.schemas import AIReviewOutput, AIRuleJudgement, AISuggestion
 from app.services import llm, review_engine
+from app.services.rulebook_editor import current_rulebook
 from app.services.status import document_status
 
 SAMPLES = PROJECT_ROOT / "samples"
@@ -266,3 +267,74 @@ def test_pdf_report_errors(client, session):
     response = client.get(f"/api/reviews/{review_id}/report")
     assert response.status_code == 400
     assert "once the review has finished" in response.json()["detail"]
+
+
+# ---------- Excel workbook (Part B) ----------
+
+WORKBOOK = ("mapping.xlsx", (SAMPLES / "frd_mapping_sample.xlsx").read_bytes())
+
+
+def upload_frd(client, workbook=None):
+    files = {"file": ("frd.md", (SAMPLES / "brd_strong.md").read_bytes())}
+    if workbook:
+        files["workbook"] = workbook
+    response = client.post("/api/documents", files=files, data={"document_type": "frd", "uploaded_by": "Jordan"})
+    return client.get(f"/api/reviews/{response.json()['review_id']}").json()
+
+
+def test_part_b_left_out_without_a_workbook(client, session, frd_excel_rule, fake_claude):
+    document_rules = [r for r in current_rulebook(session, "frd").rules if r.part == "document"]
+    fake_claude.responses.append(fake_response(AIReviewOutput(results=[judgement(r.id) for r in document_rules])))
+    review = upload_frd(client)
+    assert len(fake_claude.calls) == 1  # no workbook call
+    assert review["score"] == 100 and review["passed"] is True  # the Excel rule isn't counted as failed
+    assert review["rule_count"] == len(document_rules)
+    assert review["excel_rules_left_out"] == 1
+    assert review["workbook_filename"] is None
+    assert review["document_subtotal"] == 100 and review["excel_subtotal"] is None
+    assert {r["part"] for r in review["rules"]} == {"document"}
+    assert review["prompt_version"] == "evaluate_rules_v1"
+
+
+def test_workbook_reviewed_against_part_b(client, session, frd_excel_rule, fake_claude):
+    document_rules = [r for r in current_rulebook(session, "frd").rules if r.part == "document"]
+    fake_claude.responses.append(fake_response(AIReviewOutput(results=[judgement(r.id) for r in document_rules])))
+    fake_claude.responses.append(fake_response(AIReviewOutput(results=[judgement("FRD-XL-01", "not_met")])))
+    review = upload_frd(client, WORKBOOK)
+
+    document_call, workbook_call = fake_claude.calls
+    assert "<workbook>" not in document_call["messages"][0]["content"]
+    assert "FRD-XL-01" not in document_call["messages"][0]["content"]
+    workbook_prompt = workbook_call["messages"][0]["content"]
+    assert "Rule FRD-XL-01" in workbook_prompt and "Rule FRD-01" not in workbook_prompt
+    assert "<document>" in workbook_prompt  # for consistency rules
+    assert "<workbook>" in workbook_prompt and "## Sheet: Field Mapping" in workbook_prompt
+    assert "NOT the correctness of the data values" in workbook_call["system"]
+
+    assert review["prompt_version"] == "evaluate_rules_v1 + evaluate_workbook_v1"
+    assert review["workbook_filename"] == "mapping.xlsx"
+    assert review["rule_count"] == len(document_rules) + 1 and review["excel_rules_left_out"] == 0
+    assert review["rules"][-1]["rule_id"] == "FRD-XL-01" and review["rules"][-1]["part"] == "excel"
+    assert review["document_subtotal"] == 100 and review["excel_subtotal"] == 0
+    # one score for both parts; the critical Excel rule Not Met fails the whole document
+    assert 80 <= review["score"] < 100
+    assert review["passed"] is False
+    assert review["critical_failures"] == [{"rule_id": "FRD-XL-01", "title": "Field mapping sheet"}]
+
+
+def test_workbook_review_in_demo_mode(client, frd_excel_rule):
+    review = upload_frd(client, WORKBOOK)
+    assert review["status"] == "complete" and review["is_demo"] is True
+    [excel] = [r for r in review["rules"] if r["part"] == "excel"]
+    assert excel["status"] == "met"  # the sample workbook has a Field Mapping sheet
+    assert excel["location"].startswith("Sheet: ")  # the sheet the demo reviewer found it on
+    assert review["excel_subtotal"] == 100
+
+
+def test_rules_in_review():
+    rules_json = [
+        {"id": "A-1", "title": "a", "weight": "high", "check": "x"},
+        {"id": "XL-1", "title": "b", "part": "excel", "weight": "low", "check": "x"},
+    ]
+    assert [r.id for r in review_engine.rules_in_review(rules_json, has_workbook=True)] == ["A-1", "XL-1"]
+    assert [r.id for r in review_engine.rules_in_review(rules_json, has_workbook=False)] == ["A-1"]

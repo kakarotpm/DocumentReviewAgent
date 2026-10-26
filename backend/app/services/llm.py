@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
 EVALUATE_PROMPT = "evaluate_rules_v1"
+EVALUATE_WORKBOOK_PROMPT = "evaluate_workbook_v1"
 DRAFT_RULES_PROMPT = "draft_rules_v1"
 DRAFT_RULE_PROMPT = "draft_rule_v1"
 MAX_TOKENS = 16000
@@ -106,13 +107,8 @@ def _ask_claude(system: str, user: str, output_format: type[T], problem: Callabl
     )
 
 
-def evaluate_rules(document_text: str, rules: list[Rule], document_type_name: str) -> tuple[AIReviewOutput, str, str]:
-    """Judge every rule against the document. Returns (judgements, model name, prompt version)."""
-    if not ai_available():
-        return demo_reviewer.evaluate(document_text, rules), demo_reviewer.MODEL_NAME, demo_reviewer.PROMPT_VERSION
-
-    system = load_prompt(EVALUATE_PROMPT).replace("{{document_type}}", document_type_name)
-    user = f"<rules>\n{_rules_as_text(rules)}\n</rules>\n\n<document>\n{document_text}\n</document>"
+def _one_result_per_rule(rules: list[Rule]) -> Callable[[AIReviewOutput], str | None]:
+    """A check that the AI returned exactly one result for each rule, and nothing else."""
     expected = {rule.id for rule in rules}
 
     def problem(output: AIReviewOutput) -> str | None:
@@ -127,8 +123,36 @@ def evaluate_rules(document_text: str, rules: list[Rule], document_type_name: st
             return "more than one result for the same rule"
         return None
 
-    output = _ask_claude(system, user, AIReviewOutput, problem)
+    return problem
+
+
+def evaluate_rules(document_text: str, rules: list[Rule], document_type_name: str) -> tuple[AIReviewOutput, str, str]:
+    """Judge every rule against the document. Returns (judgements, model name, prompt version)."""
+    if not ai_available():
+        return demo_reviewer.evaluate(document_text, rules), demo_reviewer.MODEL_NAME, demo_reviewer.PROMPT_VERSION
+
+    system = load_prompt(EVALUATE_PROMPT).replace("{{document_type}}", document_type_name)
+    user = f"<rules>\n{_rules_as_text(rules)}\n</rules>\n\n<document>\n{document_text}\n</document>"
+    output = _ask_claude(system, user, AIReviewOutput, _one_result_per_rule(rules))
     return output, settings.anthropic_model, EVALUATE_PROMPT
+
+
+def evaluate_workbook(
+    workbook_text: str, document_text: str, rules: list[Rule], document_type_name: str
+) -> tuple[AIReviewOutput, str, str]:
+    """Judge every Part B (Excel) rule against the workbook. The document text is included for
+    consistency rules. Returns (judgements, model name, prompt version)."""
+    if not ai_available():
+        return demo_reviewer.evaluate(workbook_text, rules), demo_reviewer.MODEL_NAME, demo_reviewer.PROMPT_VERSION
+
+    system = load_prompt(EVALUATE_WORKBOOK_PROMPT).replace("{{document_type}}", document_type_name)
+    user = (
+        f"<rules>\n{_rules_as_text(rules)}\n</rules>\n\n"
+        f"<document>\n{document_text}\n</document>\n\n"
+        f"<workbook>\n{workbook_text}\n</workbook>"
+    )
+    output = _ask_claude(system, user, AIReviewOutput, _one_result_per_rule(rules))
+    return output, settings.anthropic_model, EVALUATE_WORKBOOK_PROMPT
 
 
 def _rule_as_text(rule: Rule) -> str:

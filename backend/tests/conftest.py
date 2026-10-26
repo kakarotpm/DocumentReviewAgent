@@ -9,6 +9,8 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.db import get_session, get_session_factory, init_db
 from app.main import app
+from app.schemas import Rule, SaveRulebookRequest
+from app.services.rulebook_editor import current_rulebook, save_rulebook
 from app.services.rulebooks import load_builtin_rulebooks
 
 # Tests use a frozen copy of the original rulebooks, so editing the real files in rulebooks/
@@ -46,3 +48,12 @@ def client(session, session_factory):
     app.dependency_overrides[get_session_factory] = lambda: session_factory
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def frd_excel_rule(session):
+    """Give the test FRD rulebook one critical Part B (Excel) rule; the frozen test rulebooks have none."""
+    rulebook = current_rulebook(session, "frd")
+    rule = Rule(id="FRD-XL-01", title="Field mapping sheet", part="excel", weight="high", critical=True, check="Has a Field Mapping sheet.")
+    save_rulebook(session, "frd", SaveRulebookRequest(rulebook=rulebook.model_copy(update={"rules": rulebook.rules + [rule]}), changed_by="Test"))
+    return rule
