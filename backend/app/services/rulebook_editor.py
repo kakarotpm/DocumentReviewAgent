@@ -29,8 +29,8 @@ from app.schemas import (
 from app.services import llm
 from app.services.rulebooks import DOC_TYPE_KEY, RulebookError, get_document_type, parse_rulebook
 
-RULE_ID = re.compile(r"^[A-Z]+-\d+$")
-RULE_FIELDS = ["title", "weight", "critical", "check", "pass_example", "fail_example"]
+RULE_ID = re.compile(r"^[A-Z]+(?:-[A-Z]+)*-\d+$")  # BRD-01, FRD-XL-01
+RULE_FIELDS = ["title", "part", "weight", "critical", "check", "pass_example", "fail_example"]
 
 
 class EditError(ValueError):

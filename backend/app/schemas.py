@@ -6,11 +6,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 Weight = Literal["high", "medium", "low"]
+Part = Literal["document", "excel"]  # Part A rules check the document; Part B rules check an Excel workbook
 
 
 class Rule(BaseModel):
     id: str
     title: str
+    part: Part = "document"
     weight: Weight
     critical: bool = False
     check: str
@@ -27,6 +29,7 @@ class Rulebook(BaseModel):
 
 
 class DocumentTypeSummary(BaseModel):
+    has_excel_rules: bool = False  # true when the rulebook has a Part B (an Excel workbook can be added)
     key: str
     display_name: str
     description: str

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -8,6 +10,10 @@ from app.config import settings
 from app.db import get_session, get_session_factory, init_db
 from app.main import app
 from app.services.rulebooks import load_builtin_rulebooks
+
+# Tests use a frozen copy of the original rulebooks, so editing the real files in rulebooks/
+# (which the product owner is free to do) never breaks the tests.
+FIXTURE_RULEBOOKS = Path(__file__).parent / "fixtures" / "rulebooks"
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +29,7 @@ def session_factory():
     init_db(engine)
     factory = sessionmaker(bind=engine)
     with factory() as s:
-        load_builtin_rulebooks(s, settings.rulebooks_dir)
+        load_builtin_rulebooks(s, FIXTURE_RULEBOOKS)
     return factory
 
 

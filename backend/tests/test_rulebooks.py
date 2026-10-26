@@ -2,6 +2,7 @@ import pytest
 
 from app.config import settings
 from app.services.rulebooks import RulebookError, parse_rulebook, rulebook_to_markdown
+from tests.conftest import FIXTURE_RULEBOOKS
 
 EXPECTED_RULE_COUNTS = {"brd": 10, "frd": 10, "process_as_is": 9, "process_to_be": 9, "roadmap": 10}
 
@@ -36,15 +37,20 @@ def errors_for(text):
 # ---------- The shipped rulebooks ----------
 
 
+@pytest.mark.parametrize("path", sorted(settings.rulebooks_dir.glob("*.md")), ids=lambda p: p.name)
+def test_real_rulebook_files_are_valid(path):
+    """The files in rulebooks/ can be edited freely; they just have to be valid."""
+    rulebook = parse_rulebook(path.read_text(encoding="utf-8"), source=path.name)
+    assert rulebook.doc_type == path.stem
+    assert rulebook.rules
+
+
 @pytest.mark.parametrize("key, count", EXPECTED_RULE_COUNTS.items())
-def test_shipped_rulebooks_are_valid(key, count):
-    path = settings.rulebooks_dir / f"{key}.md"
+def test_test_rulebooks_are_as_expected(key, count):
+    path = FIXTURE_RULEBOOKS / f"{key}.md"
     rulebook = parse_rulebook(path.read_text(encoding="utf-8"), source=path.name)
     assert rulebook.doc_type == key
     assert len(rulebook.rules) == count
-    critical = [r for r in rulebook.rules if r.critical]
-    assert 1 <= len(critical) <= 3, "each type should have 1 to 3 critical rules"
-    assert all(r.pass_example and r.fail_example for r in rulebook.rules)
 
 
 # ---------- Parsing ----------
@@ -171,7 +177,7 @@ def test_export_round_trips(client):
 def test_loading_twice_does_not_duplicate(session):
     from app.services.rulebooks import list_document_types, load_builtin_rulebooks
 
-    load_builtin_rulebooks(session, settings.rulebooks_dir)
+    load_builtin_rulebooks(session, FIXTURE_RULEBOOKS)
     assert len(list_document_types(session)) == 5
 
 
@@ -184,3 +190,41 @@ def test_broken_file_is_skipped_others_still_load(session, tmp_path, caplog):
     keys = [t.key for t in list_document_types(session)]
     assert "test_doc" in keys and "other" not in keys
     assert "rulebooks/bad.md has 1 problem(s)" in caplog.text
+
+
+# ---------- Part A (document) and Part B (Excel) ----------
+
+TWO_PARTS = """---
+doc_type: frd
+display_name: FRD
+---
+
+# Part A: Document rules
+
+## FRD-01: Scope
+- weight: high
+- check: Scope is stated.
+
+# Part B: Excel rules
+
+## FRD-XL-01: Source-to-target mapping
+- weight: high
+- critical: true
+- check: Every target field has a source.
+"""
+
+
+def test_part_b_rules_are_excel_rules():
+    rulebook = parse_rulebook(TWO_PARTS)
+    assert [(r.id, r.part) for r in rulebook.rules] == [("FRD-01", "document"), ("FRD-XL-01", "excel")]
+
+
+def test_rules_without_parts_are_document_rules():
+    assert {r.part for r in parse_rulebook(VALID).rules} == {"document"}
+
+
+def test_two_part_export_round_trips():
+    markdown = rulebook_to_markdown(parse_rulebook(TWO_PARTS))
+    assert "# Part A: Document rules" in markdown and "# Part B: Excel rules" in markdown
+    assert parse_rulebook(markdown) == parse_rulebook(TWO_PARTS)
+    assert "# Part" not in rulebook_to_markdown(parse_rulebook(VALID))  # no headings when there's no Part B

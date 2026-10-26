@@ -16,6 +16,16 @@ Markdown format (see rulebooks/brd.md for a full example):
       indented lines below.
     - pass_example: optional
     - fail_example: optional
+
+Rules can be split into two parts with single-# headings:
+
+    # Part A: Document rules       -> checked against the uploaded document (the default)
+    ## FRD-01: ...
+    # Part B: Excel rules          -> checked against an optional Excel workbook
+    ## FRD-XL-01: ...
+
+A single-# heading that mentions "Part B" or "Excel" starts the Excel rules; any other
+single-# heading goes back to document rules.
 """
 
 import logging
@@ -38,7 +48,8 @@ REQUIRED_RULE_FIELDS = ["weight", "check"]
 IGNORED_RULE_FIELDS = {"category"}
 WEIGHTS = {"high", "medium", "low"}
 
-HEADING = re.compile(r"^##\s+([A-Za-z]+-\d+)\s*:\s*(.+?)\s*$")
+HEADING = re.compile(r"^##\s+([A-Za-z]+(?:-[A-Za-z]+)*-\d+)\s*:\s*(.+?)\s*$")  # BRD-01, FRD-XL-01
+EXCEL_PART_HEADING = "# Part B: Excel rules"
 FIELD = re.compile(r"^-\s*([A-Za-z_]+)\s*:\s*(.*)$")
 DOC_TYPE_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -94,9 +105,15 @@ def parse_rulebook(text: str, source: str = "Rulebook") -> Rulebook:
     raw_rules: list[dict] = []
     current: dict | None = None
     current_field: str | None = None
+    part = "document"
     for line_no, line in enumerate(lines[end + 1 :], start=end + 2):
         stripped = line.strip()
         if not stripped:
+            continue
+        if line.startswith("# "):  # a part heading, e.g. "# Part B: Excel rules"
+            heading = stripped.lower()
+            part = "excel" if "part b" in heading or "excel" in heading else "document"
+            current, current_field = None, None
             continue
         if line.startswith("##"):
             match = HEADING.match(stripped)
@@ -104,7 +121,7 @@ def parse_rulebook(text: str, source: str = "Rulebook") -> Rulebook:
                 errors.append(f"Line {line_no}: heading '{stripped}' should look like '## BRD-01: Rule title'.")
                 current, current_field = None, None
                 continue
-            current = {"id": match.group(1).upper(), "title": match.group(2), "fields": {}, "line": line_no}
+            current = {"id": match.group(1).upper(), "title": match.group(2), "part": part, "fields": {}, "line": line_no}
             raw_rules.append(current)
             current_field = None
             continue
@@ -148,6 +165,7 @@ def parse_rulebook(text: str, source: str = "Rulebook") -> Rulebook:
             Rule(
                 id=rule_id,
                 title=raw["title"],
+                part=raw["part"],
                 weight=weight,
                 critical=critical_text == "true",
                 check=fields["check"],
@@ -181,7 +199,13 @@ def rulebook_to_markdown(rulebook: Rulebook, version: int | None = None) -> str:
     if version is not None:
         meta["version"] = version
     out = ["---", yaml.safe_dump(meta, sort_keys=False, allow_unicode=True).strip(), "---", ""]
-    for rule in rulebook.rules:
+    document_rules = [r for r in rulebook.rules if r.part == "document"]
+    excel_rules = [r for r in rulebook.rules if r.part == "excel"]
+    if excel_rules:
+        out += ["# Part A: Document rules", ""]
+    for rule in document_rules + excel_rules:
+        if excel_rules and rule is excel_rules[0]:
+            out += [EXCEL_PART_HEADING, ""]
         out.append(f"## {rule.id}: {rule.title}")
         out.append(f"- weight: {rule.weight}")
         out.append(f"- critical: {'true' if rule.critical else 'false'}")
@@ -242,6 +266,7 @@ def _summary(doc_type: DocumentType) -> DocumentTypeSummary:
         is_builtin=doc_type.is_builtin,
         version=latest.version_number,
         rule_count=len(latest.rules_json),
+        has_excel_rules=any(r.get("part") == "excel" for r in latest.rules_json),
     )
 
 
