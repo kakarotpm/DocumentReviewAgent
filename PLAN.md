@@ -11,6 +11,13 @@ Based on [intent.md](intent.md). Nine phases, following intent.md §12. Each pha
 - ~~Phase 9 PDF report~~ done 2026-10-21 with `fpdf2` (approved). Download button on the results page.
 - **With the API key:** run real reviews on both samples, run `scripts/consistency_check.py` (±3 target), and try prompt-based rule drafting.
 
+**Excel workbook (Part B) work, started 2026-10-26** (decisions in CLAUDE.md, "Excel workbook decisions"):
+1. ~~Rulebook format: parts, `FRD-XL-01` IDs, `# Part B` heading, export, `has_excel_rules`~~ done (commit 35c44e1).
+2. Reading workbooks and uploading them. **Partly done:** `extract_workbook` in `extraction.py`; sample `samples/frd_mapping_sample.xlsx` (+ `scripts/make_sample_xlsx.py`); DB columns `document_versions.workbook_filename/workbook_text` and `rule_results.part` (added on startup in `db.py`); `create_document` accepts an optional workbook via `_read_workbook`. **Remaining:** `add_version` accepts an optional workbook; upload endpoints accept an optional `workbook` file; `UploadResult` / `VersionSummary` show `workbook_filename`; tests.
+3. Reviewing: the document against Part A rules; if a workbook was uploaded, the workbook against Part B rules (separate AI call with its own prompt file, e.g. `prompts/evaluate_workbook_v1.txt`, that judges structure not data and also gets the document text); demo reviewer covers both; save each result's `part`; one score plus a subtotal per part in the review detail.
+4. Screens and report: "Also upload the Excel workbook" checkbox and second drop zone on New Review and revised upload (only when the type has Part B rules); results and suggestions grouped by part with subtotals; Rulebooks page shows Part A / Part B groups and the editor lets a rule's part be chosen; PDF report grouped by part.
+5. After it's built: the product owner uploads the new `rulebooks/frd.md` via Rulebooks → FRD → Upload .md (the database still has the old FRD rules).
+
 Acceptance criteria (AC) are numbered in the order they appear in intent.md §14:
 
 | # | Acceptance criterion (short) |

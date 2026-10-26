@@ -47,6 +47,17 @@ Keep scoring simple. These replace the spec's version:
 - **Revised document versions are reviewed against the latest rulebook.** If the rulebook changed since the previous version, the results page says so next to the score change.
 - Custom types are just rulebooks created from a prompt, so they use the same editor.
 
+## Excel workbook decisions (product owner, 2026-10-26)
+
+Many FRDs come with an Excel workbook (source-to-target mappings, transformations, joins, measures) because of data engineering and migration work.
+
+- A rulebook can have two parts: **Part A** rules check the uploaded document; **Part B** rules (under a `# Part B: Excel rules` heading, IDs like `FRD-XL-01`) check an optional Excel workbook. Rules without a part heading are Part A.
+- Works for **any document type whose rulebook has a Part B** (not hard-wired to FRD).
+- On New Review (and revised-version upload), when the chosen type has Part B rules, show a checkbox **"Also upload the Excel workbook"**. Unticked: only the document is reviewed, against Part A only (Part B is left out, not failed). Ticked: a second upload for the workbook; the document is reviewed against Part A and the workbook against Part B.
+- **One score and one Pass/Fail** covering both parts, plus a **subtotal per part**. A critical rule Not Met in either part fails the document.
+- Workbooks: **.xlsx only** (openpyxl); old .xls gets a "save as .xlsx" message. Read each sheet's name, headers and **up to 1,000 rows per sheet**.
+- The workbook review checks **structure and completeness** (sheet names, column/row headers, required content), **not the correctness of the data values**. The workbook review also sees the document text, for consistency rules.
+
 ## Tech stack
 
 - **Backend:** Python 3.11+, FastAPI, SQLAlchemy, SQLite (keep it swappable for PostgreSQL through config only), Pydantic, the official `anthropic` Python SDK.
