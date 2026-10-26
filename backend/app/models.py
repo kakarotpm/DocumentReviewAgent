@@ -84,6 +84,9 @@ class DocumentVersion(Base):
     original_filename: Mapped[str] = mapped_column(String(300))
     file_type: Mapped[str] = mapped_column(String(10))
     extracted_text: Mapped[str]
+    # Optional Excel workbook reviewed against the rulebook's Part B (only its extracted text is kept).
+    workbook_filename: Mapped[str | None] = mapped_column(String(300))
+    workbook_text: Mapped[str | None]
     uploaded_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     document: Mapped[Document] = relationship(back_populates="versions")
@@ -124,6 +127,7 @@ class RuleResult(Base):
     review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id"))
     rule_id: Mapped[str] = mapped_column(String(20))
     rule_title: Mapped[str] = mapped_column(String(300))
+    part: Mapped[str] = mapped_column(String(10), default="document")  # document / excel
     weight: Mapped[str] = mapped_column(String(10))  # high / medium / low
     critical: Mapped[bool]
     status: Mapped[str] = mapped_column(String(20))  # met / partially_met / not_met

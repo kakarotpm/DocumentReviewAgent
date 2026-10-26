@@ -7,11 +7,17 @@ import io
 from pathlib import Path
 
 import docx
+import openpyxl
 import pdfplumber
 from docx.table import Table
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 SUPPORTED_TYPES = ("docx", "pdf", "md", "txt")
+WORKBOOK_TYPES = ("xlsx", "xlsm")
+# The workbook review checks structure (sheets, headers, what's included), not the data itself,
+# so the first rows of each sheet are enough.
+MAX_ROWS_PER_SHEET = 1000
+MAX_CELL_CHARS = 200
 # A text-based PDF has far more than this many characters; a scanned one has close to none.
 MIN_TEXT_CHARS = 50
 
@@ -119,3 +125,62 @@ def _plain_text(data: bytes) -> str:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError:
         return data.decode("cp1252", errors="replace")  # older Windows text files
+
+
+# ---------- Excel workbooks ----------
+
+
+def _cell(value) -> str:
+    text = " ".join(str(value).split()) if value is not None else ""
+    return text if len(text) <= MAX_CELL_CHARS else text[: MAX_CELL_CHARS - 3] + "..."
+
+
+def extract_workbook(filename: str, data: bytes) -> str:
+    """Turn an Excel workbook into text: every sheet's name, then its rows as | cell | cell | lines.
+
+    Only the first MAX_ROWS_PER_SHEET rows with content are kept per sheet (with a note if there
+    were more). Raises ExtractionError with a friendly message if the file can't be used.
+    """
+    file_type = Path(filename).suffix.lower().lstrip(".")
+    if file_type == "xls":
+        raise ExtractionError(f"'{filename}' is an old-style Excel file (.xls). Open it in Excel, save it as .xlsx, then upload it again.")
+    if file_type not in WORKBOOK_TYPES:
+        raise ExtractionError(f"'{filename}' isn't an Excel workbook. Please upload a .xlsx file.")
+    if len(data) == 0:
+        raise ExtractionError(f"'{filename}' is empty. Please check you picked the right file.")
+    if len(data) > MAX_FILE_BYTES:
+        raise ExtractionError(f"'{filename}' is {len(data) / (1024 * 1024):.1f} MB. The limit is 10 MB.")
+
+    try:
+        workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception:
+        raise ExtractionError(
+            f"'{filename}' couldn't be opened as an Excel workbook. It may be damaged or password-protected. "
+            "Open it in Excel, save a copy as .xlsx, and try again."
+        )
+
+    sections = []
+    try:
+        for sheet in workbook.worksheets:
+            rows, total = [], 0
+            for values in sheet.iter_rows(values_only=True):
+                cells = [_cell(v) for v in values]
+                while cells and not cells[-1]:
+                    cells.pop()  # drop empty cells at the end of the row
+                if not cells:
+                    continue  # skip empty rows
+                total += 1
+                if total <= MAX_ROWS_PER_SHEET:
+                    rows.append("| " + " | ".join(cells) + " |")
+            hidden = " (hidden sheet)" if sheet.sheet_state != "visible" else ""
+            if not rows:
+                sections.append(f"## Sheet: {sheet.title}{hidden}\n(empty sheet)")
+                continue
+            note = f"{total} rows with content" + (f"; only the first {MAX_ROWS_PER_SHEET} are shown" if total > MAX_ROWS_PER_SHEET else "")
+            sections.append(f"## Sheet: {sheet.title}{hidden}\n({note})\n" + "\n".join(rows))
+    finally:
+        workbook.close()
+
+    if not any("|" in s for s in sections):
+        raise ExtractionError(f"'{filename}' has no content in any sheet. Please check you picked the right file.")
+    return f"Workbook: {filename} ({len(sections)} sheets)\n\n" + "\n\n".join(sections)

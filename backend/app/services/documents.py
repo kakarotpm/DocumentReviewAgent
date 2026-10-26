@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Document, DocumentType, DocumentVersion, Review
 from app.schemas import DocumentDetail, DocumentListItem, ReviewSummary, UploadResult, VersionSummary
-from app.services.extraction import extract_text
+from app.services.extraction import extract_text, extract_workbook
 from app.services.status import document_status
 
 PREVIEW_CHARS = 1000
@@ -29,6 +29,19 @@ class UploadError(ValueError):
     """The upload can't be accepted. The message tells the user what to do next."""
 
 
+def _read_workbook(doc_type: DocumentType, workbook: tuple[str, bytes] | None) -> tuple[str | None, str | None]:
+    """Check and read the optional Excel workbook. Returns (filename, text), or (None, None) if there isn't one."""
+    if workbook is None:
+        return None, None
+    if not any(r.get("part") == "excel" for r in doc_type.latest_version.rules_json):
+        raise UploadError(
+            f"{doc_type.display_name} has no Excel rules (Part B), so a workbook can't be reviewed. "
+            "Remove the workbook, or add Part B rules to the rulebook first."
+        )
+    filename, data = workbook
+    return filename, extract_workbook(filename, data)  # raises ExtractionError with a friendly message
+
+
 def _upload_result(version: DocumentVersion, review: Review) -> UploadResult:
     return UploadResult(
         document_id=version.document.id,
@@ -39,6 +52,7 @@ def _upload_result(version: DocumentVersion, review: Review) -> UploadResult:
         file_type=version.file_type,
         extracted_characters=len(version.extracted_text),
         extracted_text_preview=version.extracted_text[:PREVIEW_CHARS],
+        workbook_filename=version.workbook_filename,
     )
 
 
@@ -51,9 +65,11 @@ def create_document(
     uploaded_by: str,
     title: str = "",
     project_name: str = "",
+    workbook: tuple[str, bytes] | None = None,
 ) -> UploadResult:
     """Extract the file's text and create the Document, Version 1, and a queued Review.
 
+    `workbook` is an optional (filename, bytes) Excel file, reviewed against the rulebook's Part B.
     Raises UploadError or ExtractionError (both have user-friendly messages).
     """
     uploaded_by = uploaded_by.strip()
@@ -64,6 +80,7 @@ def create_document(
         raise UploadError(f"Unknown document type '{document_type_key}'. Please choose a type from the list.")
 
     file_type, text = extract_text(filename, data)  # raises ExtractionError with a friendly message
+    workbook_filename, workbook_text = _read_workbook(doc_type, workbook)
 
     document = Document(
         title=title.strip() or Path(filename).stem,
@@ -71,7 +88,14 @@ def create_document(
         project_name=project_name.strip(),
         uploaded_by=uploaded_by,
     )
-    version = DocumentVersion(version_number=1, original_filename=filename, file_type=file_type, extracted_text=text)
+    version = DocumentVersion(
+        version_number=1,
+        original_filename=filename,
+        file_type=file_type,
+        extracted_text=text,
+        workbook_filename=workbook_filename,
+        workbook_text=workbook_text,
+    )
     document.versions.append(version)
     review = Review(document_version=version, rulebook_version=doc_type.latest_version, status="queued")
     session.add_all([document, review])

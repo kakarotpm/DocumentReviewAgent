@@ -31,9 +31,21 @@ def init_db(bind=engine):
 
     Base.metadata.create_all(bind)
 
-    # 2026-10-21: rules no longer have a category. Databases created before then still have a
-    # required category column on rule_results, which would stop new results being saved.
-    columns = [c["name"] for c in inspect(bind).get_columns("rule_results")]
-    if "category" in columns:
+    # Small updates for databases created by earlier versions of the app.
+    rule_result_columns = [c["name"] for c in inspect(bind).get_columns("rule_results")]
+    version_columns = [c["name"] for c in inspect(bind).get_columns("document_versions")]
+    changes = []
+    # 2026-10-21: rules no longer have a category (the old column was required, which would block saves).
+    if "category" in rule_result_columns:
+        changes.append("ALTER TABLE rule_results DROP COLUMN category")
+    # 2026-10-26: Part B rules check an optional Excel workbook.
+    if "part" not in rule_result_columns:
+        changes.append("ALTER TABLE rule_results ADD COLUMN part VARCHAR(10) NOT NULL DEFAULT 'document'")
+    if "workbook_filename" not in version_columns:
+        changes.append("ALTER TABLE document_versions ADD COLUMN workbook_filename VARCHAR(300)")
+    if "workbook_text" not in version_columns:
+        changes.append("ALTER TABLE document_versions ADD COLUMN workbook_text TEXT")
+    if changes:
         with bind.begin() as connection:
-            connection.execute(text("ALTER TABLE rule_results DROP COLUMN category"))
+            for change in changes:
+                connection.execute(text(change))
