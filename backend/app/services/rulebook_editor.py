@@ -57,7 +57,8 @@ def id_prefix(display_name: str) -> str:
 
 
 def _next_ids(prefix: str, existing: set[str], count: int) -> list[str]:
-    numbers = [int(i.split("-")[1]) for i in existing if i.startswith(prefix + "-") and i.split("-")[1].isdigit()]
+    """The next free IDs after the prefix: FRD -> FRD-11, FRD-XL -> FRD-XL-05."""
+    numbers = [int(i[len(prefix) + 1:]) for i in existing if i.startswith(prefix + "-") and i[len(prefix) + 1:].isdigit()]
     start = max(numbers, default=0) + 1
     return [f"{prefix}-{n:02d}" for n in range(start, start + count)]
 
@@ -276,8 +277,9 @@ def draft_rule(session: Session, key: str, request: DraftRuleRequest) -> DraftRu
         if original is None:
             raise EditError(f"There's no rule {request.rule_id} in this rulebook. It may have been deleted.")
 
+    part = original.part if original else request.part
     try:
-        proposal = llm.draft_rule(instruction, rulebook, original)
+        proposal = llm.draft_rule(instruction, rulebook, original, part)
     except llm.AIError as e:
         raise EditError(str(e))
 
@@ -285,7 +287,9 @@ def draft_rule(session: Session, key: str, request: DraftRuleRequest) -> DraftRu
         rule_id = original.id
     else:
         prefix = rulebook.rules[0].id.split("-")[0] if rulebook.rules else id_prefix(rulebook.display_name)
+        if part == "excel":
+            prefix += "-XL"  # Excel rules are numbered separately: FRD-XL-01
         rule_id = _next_ids(prefix, {r.id for r in rulebook.rules}, 1)[0]
-    rule = Rule(id=rule_id, title=proposal.title, weight=proposal.weight, critical=proposal.critical,
+    rule = Rule(id=rule_id, title=proposal.title, part=part, weight=proposal.weight, critical=proposal.critical,
                 check=proposal.check, pass_example=proposal.pass_example, fail_example=proposal.fail_example)
     return DraftRuleResult(rule=rule, summary=proposal.summary, original=original)

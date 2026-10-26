@@ -338,3 +338,18 @@ def test_rules_in_review():
     ]
     assert [r.id for r in review_engine.rules_in_review(rules_json, has_workbook=True)] == ["A-1", "XL-1"]
     assert [r.id for r in review_engine.rules_in_review(rules_json, has_workbook=False)] == ["A-1"]
+
+
+def test_pdf_report_grouped_by_part(client, session, frd_excel_rule):
+    from app.services.report_pdf import _rules_by_part
+
+    with_workbook = review_engine.get_review(session, upload_frd(client, WORKBOOK)["id"])
+    response = client.get(f"/api/reviews/{with_workbook.id}/report")
+    assert response.status_code == 200 and response.content.startswith(b"%PDF")
+    [(document_heading, _), (excel_heading, [excel_rule])] = _rules_by_part(with_workbook)
+    assert document_heading.startswith(" - Part A: Document (subtotal ")
+    assert excel_heading == " - Part B: Excel workbook (subtotal 100)" and excel_rule.rule_id == "FRD-XL-01"
+    without = review_engine.get_review(session, upload_frd(client)["id"])
+    [(heading, _)] = _rules_by_part(without)
+    assert heading == ""  # one part: no part headings
+    assert client.get(f"/api/reviews/{without.id}/report").status_code == 200

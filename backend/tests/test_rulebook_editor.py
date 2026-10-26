@@ -233,3 +233,28 @@ def test_prompt_new_type(client, fake_ai):
     assert [r["id"] for r in preview["rulebook"]["rules"]] == ["DMP-01", "DMP-02"]
     saved = create(client, preview["rulebook"])
     assert saved.status_code == 201
+
+
+# ---------- Part B (Excel) rules ----------
+
+
+def test_ai_drafts_a_new_excel_rule(client, monkeypatch, frd_excel_rule):
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    prompts = []
+    monkeypatch.setattr(llm, "_ask_claude", lambda system, user, fmt, problem: prompts.append(user) or single("Joins sheet"))
+    body = client.post("/api/document-types/frd/rules/draft", json={"instruction": "Joins need keys", "part": "excel"}).json()
+    assert body["rule"]["id"] == "FRD-XL-02" and body["rule"]["part"] == "excel"
+    assert "Part B (Excel) rule" in prompts[0]
+
+
+def test_ai_change_keeps_an_excel_rules_part(client, fake_ai, frd_excel_rule):
+    fake_ai.proposal = single("Field mapping sheet with types", "high", critical=True)
+    body = client.post("/api/document-types/frd/rules/draft", json={"instruction": "Add data types", "rule_id": "FRD-XL-01"}).json()
+    assert body["rule"]["id"] == "FRD-XL-01" and body["rule"]["part"] == "excel"
+
+
+def test_new_document_rule_id_skips_excel_ids(client, fake_ai, frd_excel_rule):
+    fake_ai.proposal = single("Glossary", "low")
+    body = client.post("/api/document-types/frd/rules/draft", json={"instruction": "Add a glossary"}).json()
+    assert body["rule"]["part"] == "document"
+    assert body["rule"]["id"].startswith("FRD-") and "XL" not in body["rule"]["id"]

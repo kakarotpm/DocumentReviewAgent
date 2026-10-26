@@ -1,17 +1,18 @@
 // Shows what an uploaded .md file or an AI prompt would change, before anything is saved.
 import { useState } from "react";
-import { rememberName, savedName, WEIGHT_LABELS } from "../lib/format";
+import { PARTS, rememberName, savedName, WEIGHT_LABELS } from "../lib/format";
 import RuleList from "./RuleList";
 import { Badge, Button, Card, CriticalBadge, ErrorMessage, Field, Notice, WeightBadge } from "./ui";
 
 const FIELD_LABELS = {
-  title: "Title", weight: "Weight", critical: "Critical",
+  title: "Title", part: "Part", weight: "Weight", critical: "Critical",
   check: "What to check", pass_example: "Pass example", fail_example: "Fail example",
   display_name: "Name", description: "Description", pass_threshold: "Pass threshold",
 };
 
 function show(field, value) {
   if (field === "weight") return WEIGHT_LABELS[value];
+  if (field === "part") return PARTS.find((p) => p.id === value)?.label;
   if (field === "critical") return value ? "Yes" : "No";
   return value || "(empty)";
 }
@@ -21,6 +22,7 @@ function RuleHeading({ rule }) {
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-mono text-xs text-slate-500">{rule.id}</span>
       <span className="font-medium">{rule.title}</span>
+      {rule.part === "excel" && <Badge icon="table">Excel</Badge>}
       {rule.critical && <CriticalBadge />}
       <WeightBadge weight={rule.weight} />
     </div>

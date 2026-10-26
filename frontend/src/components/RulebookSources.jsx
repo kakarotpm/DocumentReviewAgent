@@ -113,21 +113,25 @@ export function PromptRules({ onPreview, onCancel }) {
   );
 }
 
-// One rule: describe a new rule (rule = null), or describe how to change an existing one.
+// One rule: describe a new rule (rule = null; part says whether it checks the document or the Excel workbook),
+// or describe how to change an existing one (it keeps its part).
 // onDraft receives { rule, original, summary } from the backend.
-export function RuleAIDraft({ docKey, rule, onDraft, onCancel }) {
+export function RuleAIDraft({ docKey, rule, part = "document", onDraft, onCancel }) {
+  const excel = !rule && part === "excel";
   return (
     <AIRequestCard
-      title={rule ? `Change ${rule.id} "${rule.title}" with AI` : "Add a rule with AI"}
+      title={rule ? `Change ${rule.id} "${rule.title}" with AI` : excel ? "Add an Excel rule (Part B) with AI" : "Add a rule with AI"}
       label={rule ? "How should this rule change?" : "Describe the rule"}
       hint="You'll see the draft before anything is saved, and can edit it."
       placeholder={
         rule
           ? "e.g. Make it stricter: every objective needs a target value and a date. Make it critical."
-          : "e.g. The document must say how long data is kept and who approves deleting it."
+          : excel
+            ? "e.g. The workbook must have a Joins sheet listing every join with its left table, right table, join type and keys."
+            : "e.g. The document must say how long data is kept and who approves deleting it."
       }
       buttonLabel={rule ? "Draft the change" : "Draft the rule"}
-      request={(instruction) => api.post(`/api/document-types/${docKey}/rules/draft`, { instruction, rule_id: rule ? rule.id : null })}
+      request={(instruction) => api.post(`/api/document-types/${docKey}/rules/draft`, { instruction, rule_id: rule ? rule.id : null, part })}
       onResult={onDraft}
       onCancel={onCancel}
     />

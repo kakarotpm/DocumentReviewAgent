@@ -282,6 +282,7 @@ class DraftRuleRequest(BaseModel):
 
     instruction: str
     rule_id: str | None = None
+    part: Part = "document"  # for a new rule: Part A (document) or Part B (Excel); a changed rule keeps its part
 
 
 class DraftRuleResult(BaseModel):

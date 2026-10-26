@@ -47,7 +47,7 @@ export default function DocumentDetail() {
           </>
         }
       />
-      {showUpload && <div className="mb-5"><RevisedUpload documentId={doc.id} nextVersion={latest.version_number + 1} onCancel={() => setShowUpload(false)} /></div>}
+      {showUpload && <div className="mb-5"><RevisedUpload documentId={doc.id} nextVersion={latest.version_number + 1} typeKey={doc.document_type} previousWorkbook={latest.workbook_filename} onCancel={() => setShowUpload(false)} /></div>}
 
       <Card title="Versions">
         <ol className="relative space-y-6 border-l border-slate-200 pl-6 dark:border-slate-700">
@@ -58,7 +58,7 @@ export default function DocumentDetail() {
                 <span className="absolute -left-[31px] top-1 h-3 w-3 rounded-full border-2 border-white bg-indigo-500 dark:border-slate-900" />
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-medium">Version {v.version_number} <span className="font-normal text-slate-500">· {v.original_filename}</span></p>
+                    <p className="font-medium">Version {v.version_number} <span className="font-normal text-slate-500">· {v.original_filename}{v.workbook_filename && <> + {v.workbook_filename}</>}</span></p>
                     <p className="text-sm text-slate-500">Uploaded {formatDateTime(v.uploaded_at)}{review && <> · rulebook v{review.rulebook_version}</>}</p>
                   </div>
                   <div className="flex items-center gap-4">

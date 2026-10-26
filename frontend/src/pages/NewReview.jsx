@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import FileDropzone from "../components/FileDropzone";
 import Icon from "../components/Icon";
+import WorkbookUpload from "../components/WorkbookUpload";
 import { Button, Card, ErrorMessage, Field, PageHeader, Spinner } from "../components/ui";
 import { api, useFetch } from "../lib/api";
 import { useHealth } from "../lib/health";
@@ -26,6 +27,8 @@ export default function NewReview() {
 
   const [typeKey, setTypeKey] = useState(params.get("type") || "");
   const [file, setFile] = useState(null);
+  const [wantWorkbook, setWantWorkbook] = useState(false);
+  const [workbook, setWorkbook] = useState(null);
   const [title, setTitle] = useState("");
   const [titleEdited, setTitleEdited] = useState(false);
   const [project, setProject] = useState("");
@@ -38,7 +41,10 @@ export default function NewReview() {
     if (!titleEdited) setTitle(file ? file.name.replace(/\.[^.]+$/, "") : "");
   }, [file, titleEdited]);
 
-  const ready = typeKey && file && name.trim() && title.trim();
+  // The workbook option only appears for types whose rulebook has Excel rules (Part B).
+  const hasExcelRules = Boolean(types.data?.find((t) => t.key === typeKey)?.has_excel_rules);
+  const useWorkbook = hasExcelRules && wantWorkbook;
+  const ready = typeKey && file && (!useWorkbook || workbook) && name.trim() && title.trim();
 
   const run = async (event) => {
     event.preventDefault();
@@ -51,6 +57,7 @@ export default function NewReview() {
     form.append("uploaded_by", name);
     form.append("title", title);
     form.append("project_name", project);
+    if (useWorkbook) form.append("workbook", workbook);
     try {
       const result = await api.upload("/api/documents", form);
       navigate(`/reviews/${result.review_id}`);
@@ -109,11 +116,14 @@ export default function NewReview() {
 
         <Card title={<StepTitle number={2}>Upload the document</StepTitle>}>
           <FileDropzone file={file} onChange={setFile} />
+          {hasExcelRules && (
+            <WorkbookUpload wanted={wantWorkbook} onWantedChange={setWantWorkbook} file={workbook} onFileChange={setWorkbook} />
+          )}
           <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
             <Icon name="shield" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {aiAvailable
-              ? "The document's text is sent to Anthropic's Claude API to be reviewed. The file itself isn't stored; only its text is kept."
-              : "Demo mode: the document isn't sent anywhere. The file itself isn't stored; only its text is kept."}
+              ? "The text of the document (and the workbook, if added) is sent to Anthropic's Claude API to be reviewed. The files themselves aren't stored; only their text is kept."
+              : "Demo mode: nothing is sent anywhere. The files themselves aren't stored; only their text is kept."}
           </p>
         </Card>
 
@@ -139,7 +149,14 @@ export default function NewReview() {
           </Button>
           {!ready && (
             <span className="text-sm text-slate-500">
-              {!typeKey ? "Choose a document type" : !file ? "Upload a file" : "Fill in the title and your name"} to continue.
+              {!typeKey
+                ? "Choose a document type"
+                : !file
+                  ? "Upload a file"
+                  : useWorkbook && !workbook
+                    ? "Add the Excel workbook (or untick the box)"
+                    : "Fill in the title and your name"}{" "}
+              to continue.
             </span>
           )}
         </div>

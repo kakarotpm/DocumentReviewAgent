@@ -1,8 +1,9 @@
 // Read-only list of rules. The rule definition ("what the reviewer checks") is the main thing;
 // the pass/fail examples are secondary, so they're small, grey and folded away.
 import { useState } from "react";
+import { PARTS } from "../lib/format";
 import Icon from "./Icon";
-import { CriticalBadge, WeightBadge } from "./ui";
+import { Badge, CriticalBadge, WeightBadge } from "./ui";
 
 function Examples({ rule }) {
   const [open, setOpen] = useState(false);
@@ -47,6 +48,7 @@ export function RuleCard({ rule, actions }) {
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">{rule.title}</h3>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {rule.part === "excel" && <Badge icon="table">Excel</Badge>}
           {rule.critical && <CriticalBadge />}
           <WeightBadge weight={rule.weight} />
         </div>
@@ -58,7 +60,7 @@ export function RuleCard({ rule, actions }) {
   );
 }
 
-export default function RuleList({ rules, renderActions }) {
+function Rules({ rules, renderActions }) {
   return (
     <ol className="space-y-3">
       {rules.map((rule) => (
@@ -67,5 +69,35 @@ export default function RuleList({ rules, renderActions }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// Rules grouped as Part A (document) and Part B (Excel) when there are Excel rules, or when
+// renderPartActions is given (the rulebook page always shows Part B, so Excel rules can be added).
+export default function RuleList({ rules, renderActions, renderPartActions }) {
+  const hasExcel = rules.some((r) => r.part === "excel");
+  if (!hasExcel && !renderPartActions) return <Rules rules={rules} renderActions={renderActions} />;
+  return (
+    <div className="space-y-8">
+      {PARTS.map((part) => {
+        const partRules = rules.filter((r) => (r.part || "document") === part.id);
+        return (
+          <section key={part.id}>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 className="mr-auto text-base font-semibold">{part.label} ({partRules.length})</h2>
+              {renderPartActions?.(part.id)}
+            </div>
+            {part.id === "excel" && (
+              <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+                {partRules.length
+                  ? "These check the Excel workbook that can be uploaded with the document: its sheets, headers and completeness, not whether the data is correct. They're only used when a workbook is uploaded."
+                  : "No Excel rules yet. Add Part B rules if documents of this type come with an Excel workbook (for example source-to-target mappings) that should be checked too."}
+              </p>
+            )}
+            <Rules rules={partRules} renderActions={renderActions} />
+          </section>
+        );
+      })}
+    </div>
   );
 }

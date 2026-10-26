@@ -9,7 +9,7 @@ import { Badge, Button, Card, EmptyState, ErrorMessage, Notice, PageHeader, Spin
 import { api, useFetch } from "../lib/api";
 import { formatDateTime, idPrefix, nextRuleId } from "../lib/format";
 
-const RULE_FIELDS = ["title", "weight", "critical", "check", "pass_example", "fail_example"];
+const RULE_FIELDS = ["title", "part", "weight", "critical", "check", "pass_example", "fail_example"];
 
 // A one-rule change in the shape ChangePreview expects (the same shape the backend uses).
 function oneRuleDiff({ added = [], removed = [], before = null, after = null }) {
@@ -34,6 +34,7 @@ export default function RulebookDetail() {
   const [editStart, setEditStart] = useState(null);
   const [openRuleId, setOpenRuleId] = useState(null); // rule to expand when the editor opens
   const [aiRule, setAiRule] = useState(null); // rule the AI is changing; null = AI adds a new rule
+  const [aiPart, setAiPart] = useState("document"); // part of the new rule the AI adds
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [savedMessage, setSavedMessage] = useState("");
@@ -85,15 +86,16 @@ export default function RulebookDetail() {
   const current = () => toRulebook(detail);
 
   // Add a blank rule at the end and open the editor on it.
-  const addRule = () => {
+  const addRule = (part = "document") => {
     const rb = current();
-    const id = nextRuleId(rb.rules, idPrefix(rb.display_name));
-    const blank = { id, title: "", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
+    const id = nextRuleId(rb.rules, idPrefix(rb.display_name), part);
+    const blank = { id, title: "", part, weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
     editFrom({ ...rb, rules: [...rb.rules, blank] }, id);
   };
 
-  const askAI = (rule) => {
+  const askAI = (rule, part = "document") => {
     setAiRule(rule);
+    setAiPart(part);
     go("ai");
   };
 
@@ -116,6 +118,7 @@ export default function RulebookDetail() {
   };
 
   const criticalCount = detail.rules.filter((r) => r.critical).length;
+  const excelCount = detail.rules.filter((r) => r.part === "excel").length;
 
   return (
     <>
@@ -127,14 +130,14 @@ export default function RulebookDetail() {
             {detail.description}
             <span className="mt-1 block">
               Version {detail.version} · updated {formatDateTime(detail.updated_at)} by {detail.updated_by} · pass threshold {detail.pass_threshold} ·{" "}
-              {detail.rules.length} rules, {criticalCount} critical
+              {detail.rules.length} rules, {criticalCount} critical{excelCount > 0 && <>, {excelCount} for the Excel workbook</>}
             </span>
           </>
         }
         actions={
           mode === "view" && (
             <>
-              <Button icon="plus" onClick={addRule}>Add rule</Button>
+              <Button icon="plus" onClick={() => addRule()}>Add rule</Button>
               <Button variant="secondary" icon="sparkles" onClick={() => askAI(null)}>Add rule with AI</Button>
               <Button variant="secondary" icon="pencil" onClick={() => editFrom(current())}>Edit all</Button>
               <Button variant="secondary" icon="upload" onClick={() => go("upload")}>Upload .md</Button>
@@ -155,7 +158,7 @@ export default function RulebookDetail() {
       {mode === "edit" && (
         <RuleEditor initial={editStart} openRuleId={openRuleId} onSave={save} onCancel={() => go("view")} saving={saving} error={saveError} />
       )}
-      {mode === "ai" && <RuleAIDraft docKey={key} rule={aiRule} onDraft={showDraft} onCancel={() => go("view")} />}
+      {mode === "ai" && <RuleAIDraft docKey={key} rule={aiRule} part={aiPart} onDraft={showDraft} onCancel={() => go("view")} />}
       {mode === "upload" && <MarkdownUpload targetKey={key} onPreview={showPreview} onCancel={() => go("view")} />}
       {mode === "preview" && preview && (
         <ChangePreview preview={preview} onSave={save} onEdit={editFrom} onCancel={() => go("view")} saving={saving} error={saveError} />
@@ -181,6 +184,14 @@ export default function RulebookDetail() {
           {tab === "rules" && (
             <RuleList
               rules={detail.rules}
+              renderPartActions={(part) =>
+                part === "excel" && (
+                  <>
+                    <Button variant="secondary" icon="plus" onClick={() => addRule("excel")}>Add Excel rule</Button>
+                    <Button variant="secondary" icon="sparkles" onClick={() => askAI(null, "excel")}>Add Excel rule with AI</Button>
+                  </>
+                )
+              }
               renderActions={(rule) => (
                 <>
                   <Button variant="ghost" icon="pencil" onClick={() => editFrom(current(), rule.id)}>Edit</Button>

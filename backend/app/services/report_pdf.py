@@ -9,6 +9,7 @@ from app.schemas import ReviewDetail
 STATUS_LABELS = {"met": "Met", "partially_met": "Partially met", "not_met": "Not met"}
 SUGGESTION_SECTIONS = [("add", "Missing (Add)"), ("change", "Change"), ("delete", "Delete")]
 STATE_LABELS = {"open": "Open", "done": "Done", "dismissed": "Dismissed"}
+PART_LABELS = {"document": "Part A: Document", "excel": "Part B: Excel workbook"}
 
 # The PDF's built-in font only covers basic Western characters, so swap the common "smart" ones.
 REPLACEMENTS = {
@@ -74,6 +75,16 @@ def _points(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
 
 
+def _rules_by_part(review: ReviewDetail) -> list[tuple[str, list]]:
+    """[(heading suffix, rules)] for each part in the review. With only one part there's no suffix."""
+    parts = [(part, [r for r in review.rules if r.part == part]) for part in PART_LABELS]
+    parts = [(part, rules) for part, rules in parts if rules]
+    if len(parts) == 1:
+        return [("", parts[0][1])]
+    subtotals = {"document": review.document_subtotal, "excel": review.excel_subtotal}
+    return [(f" - {PART_LABELS[part]} (subtotal {subtotals[part]})", rules) for part, rules in parts]
+
+
 def build_report(review: ReviewDetail) -> bytes:
     """Return the PDF for a completed review."""
     reviewed = review.completed_at.replace(tzinfo=timezone.utc).strftime("%d %b %Y %H:%M UTC") if review.completed_at else ""
@@ -90,6 +101,8 @@ def build_report(review: ReviewDetail) -> bytes:
         pdf.label_value("Project", review.project_name)
     pdf.label_value("Uploaded by", review.uploaded_by)
     pdf.label_value("Reviewed", reviewed)
+    if review.workbook_filename:
+        pdf.label_value("Excel workbook", review.workbook_filename)
     pdf.label_value("Rulebook", f"version {review.rulebook_version}, {review.rule_count} rules")
     pdf.label_value("Reviewer", f"{review.model_name} (prompt {review.prompt_version})")
     if review.is_demo:
@@ -109,6 +122,14 @@ def build_report(review: ReviewDetail) -> bytes:
     pdf.set_text_color(*(GREEN if review.passed else RED))
     pdf.cell(0, 14, "PASS" if review.passed else "FAIL", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.para(f"Pass mark: {review.pass_threshold}, and no critical rule may be Not Met.", size=9, color=GREY)
+    if review.excel_subtotal is not None:
+        pdf.para(f"Subtotals: document {review.document_subtotal}, Excel workbook {review.excel_subtotal}.", size=10)
+    if review.excel_rules_left_out:
+        pdf.para(
+            f"{review.excel_rules_left_out} Excel rules (Part B) were not checked because no workbook was uploaded. "
+            "They don't count toward the score.",
+            size=9, color=GREY,
+        )
     if review.critical_failures:
         names = "; ".join(f"{r.rule_id} {r.title}" for r in review.critical_failures)
         pdf.ln(1)
@@ -125,35 +146,41 @@ def build_report(review: ReviewDetail) -> bytes:
         if c.newly_not_met:
             pdf.para("Now not met: " + ", ".join(f"{r.rule_id} {r.title}" for r in c.newly_not_met), size=9)
 
-    # ----- Rules -----
-    pdf.heading("Rule checklist")
-    for rule in review.rules:
-        status_color = {"met": GREEN, "partially_met": AMBER, "not_met": RED}[rule.status]
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_text_color(*DARK)
-        title = f"{rule.rule_id}  {rule.title}" + ("  [critical]" if rule.critical else "")
-        pdf.multi_cell(130, 5, _clean(title), new_x=XPos.RIGHT, new_y=YPos.TOP)
-        pdf.set_text_color(*status_color)
-        pdf.multi_cell(0, 5, f"{STATUS_LABELS[rule.status]}  ({_points(rule.points_earned)}/{rule.points_possible})", align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.para(rule.explanation, size=9)
-        pdf.para(f'Evidence: "{rule.evidence}" ({rule.location})', size=8, style="I", color=GREY)
-        pdf.ln(1)
-        pdf.rule_line()
+    # ----- Rules (one checklist per part when the workbook was reviewed too) -----
+    parts = _rules_by_part(review)
+    for suffix, rules in parts:
+        pdf.heading(f"Rule checklist{suffix}")
+        for rule in rules:
+            status_color = {"met": GREEN, "partially_met": AMBER, "not_met": RED}[rule.status]
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(*DARK)
+            title = f"{rule.rule_id}  {rule.title}" + ("  [critical]" if rule.critical else "")
+            pdf.multi_cell(130, 5, _clean(title), new_x=XPos.RIGHT, new_y=YPos.TOP)
+            pdf.set_text_color(*status_color)
+            pdf.multi_cell(0, 5, f"{STATUS_LABELS[rule.status]}  ({_points(rule.points_earned)}/{rule.points_possible})", align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.para(rule.explanation, size=9)
+            pdf.para(f'Evidence: "{rule.evidence}" ({rule.location})', size=8, style="I", color=GREY)
+            pdf.ln(1)
+            pdf.rule_line()
 
-    # ----- Suggestions -----
+    # ----- Suggestions (by kind, then by part) -----
     for kind, label in SUGGESTION_SECTIONS:
-        items = [(rule, s) for rule in review.rules for s in rule.suggestions if s.type == kind]
-        pdf.heading(f"Suggestions: {label} ({len(items)})")
-        if not items:
+        count = sum(1 for r in review.rules for s in r.suggestions if s.type == kind)
+        pdf.heading(f"Suggestions: {label} ({count})")
+        if not count:
             pdf.para("None.", size=9, color=GREY)
             continue
-        for rule, s in items:
-            pdf.para(f"{rule.rule_id} {rule.title}  -  {s.location}  [{STATE_LABELS.get(s.user_state, s.user_state)}]", size=9, style="B")
-            if s.current_text:
-                pdf.para(("Remove: " if kind == "delete" else "Current: ") + s.current_text, size=9, color=GREY)
-            if s.proposed_text:
-                pdf.para(("Add: " if kind == "add" else "Replace with: ") + s.proposed_text, size=9)
-            pdf.para(f"Why: {s.rationale}", size=8, style="I", color=GREY)
-            pdf.ln(2)
+        for suffix, rules in parts:
+            items = [(rule, s) for rule in rules for s in rule.suggestions if s.type == kind]
+            if suffix and items:
+                pdf.para(suffix.removeprefix(" - "), size=10, style="B", color=GREY)
+            for rule, s in items:
+                pdf.para(f"{rule.rule_id} {rule.title}  -  {s.location}  [{STATE_LABELS.get(s.user_state, s.user_state)}]", size=9, style="B")
+                if s.current_text:
+                    pdf.para(("Remove: " if kind == "delete" else "Current: ") + s.current_text, size=9, color=GREY)
+                if s.proposed_text:
+                    pdf.para(("Add: " if kind == "add" else "Replace with: ") + s.proposed_text, size=9)
+                pdf.para(f"Why: {s.rationale}", size=8, style="I", color=GREY)
+                pdf.ln(2)
 
     return bytes(pdf.output())

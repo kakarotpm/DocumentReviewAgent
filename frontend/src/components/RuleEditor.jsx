@@ -1,7 +1,7 @@
-// Edit a rulebook by hand: its settings, and every rule's text, weight and critical flag.
+// Edit a rulebook by hand: its settings, and every rule's text, part (document or Excel), weight and critical flag.
 // Used for editing an existing type, creating a new one, and tweaking an AI or .md preview before saving.
 import { useState } from "react";
-import { idPrefix, keyFromName, nextRuleId, rememberName, savedName } from "../lib/format";
+import { idPrefix, keyFromName, nextRuleId, PARTS, rememberName, savedName } from "../lib/format";
 import Icon from "./Icon";
 import { Button, Card, ErrorMessage, Field } from "./ui";
 
@@ -26,9 +26,9 @@ export default function RuleEditor({ initial, isNew = false, openRuleId = null, 
 
   const deleteRule = (id) => setRulebook((rb) => ({ ...rb, rules: rb.rules.filter((r) => r.id !== id) }));
 
-  const addRule = () => {
-    const id = nextRuleId(rulebook.rules, idPrefix(rulebook.display_name));
-    const rule = { id, title: "", weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
+  const addRule = (part) => {
+    const id = nextRuleId(rulebook.rules, idPrefix(rulebook.display_name), part);
+    const rule = { id, title: "", part, weight: "medium", critical: false, check: "", pass_example: "", fail_example: "" };
     setRulebook((rb) => ({ ...rb, rules: [...rb.rules, rule] }));
     setOpenId(id);
   };
@@ -69,67 +69,83 @@ export default function RuleEditor({ initial, isNew = false, openRuleId = null, 
         {rulebook.rules.length === 0 && (
           <p className="mb-4 text-sm text-slate-500">No rules yet. Add the first one below.</p>
         )}
-        <ol className="space-y-2">
-          {rulebook.rules.map((rule) => {
-            const open = openId === rule.id;
-            return (
-              <li key={rule.id} className="rounded-lg border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-3 p-3">
-                  <button type="button" onClick={() => setOpenId(open ? null : rule.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open}>
-                    <Icon name="chevron" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "" : "-rotate-90"}`} />
-                    <span className="font-mono text-xs text-slate-500">{rule.id}</span>
-                    <span className="truncate text-sm font-medium">{rule.title || <em className="text-slate-400">Untitled rule</em>}</span>
-                  </button>
-                  <select
-                    aria-label={`Weight for ${rule.id}`}
-                    className="input w-auto py-1"
-                    value={rule.weight}
-                    onChange={(e) => updateRule(rule.id, "weight", e.target.value)}
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                  <label className="flex items-center gap-1.5 whitespace-nowrap text-sm">
-                    <input type="checkbox" checked={rule.critical} onChange={(e) => updateRule(rule.id, "critical", e.target.checked)} className="h-4 w-4 accent-red-600" />
-                    Critical
-                  </label>
-                  <button type="button" onClick={() => deleteRule(rule.id)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50" title={`Delete ${rule.id}`}>
-                    <Icon name="trash" />
-                  </button>
-                </div>
-                {open && (
-                  <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-800">
-                    <div className="sm:col-span-2">
-                      <Field label="Title" required>
-                        <input className="input" value={rule.title} onChange={(e) => updateRule(rule.id, "title", e.target.value)} placeholder="e.g. Measurable business objectives" />
-                      </Field>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Field label="What to check" required hint="Exactly what the reviewer looks for, including what counts as only partly met.">
-                        <textarea className="input min-h-20" value={rule.check} onChange={(e) => updateRule(rule.id, "check", e.target.value)} />
-                      </Field>
-                    </div>
-                    <Field label="Example that passes">
-                      <textarea className="input min-h-16" value={rule.pass_example || ""} onChange={(e) => updateRule(rule.id, "pass_example", e.target.value)} />
-                    </Field>
-                    <Field label="Example that fails">
-                      <textarea className="input min-h-16" value={rule.fail_example || ""} onChange={(e) => updateRule(rule.id, "fail_example", e.target.value)} />
-                    </Field>
-                    {rule.critical && (
-                      <p className="text-xs text-red-700 sm:col-span-2 dark:text-red-400">
-                        Critical: if this rule is Not Met, the document fails whatever its score.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-        <Button variant="secondary" icon="plus" onClick={addRule} className="mt-3">
-          Add rule
-        </Button>
+        {PARTS.map((part) => {
+          const partRules = rulebook.rules.filter((r) => (r.part || "document") === part.id);
+          return (
+            <section key={part.id} className="mb-6 last:mb-0">
+              <h3 className="mb-1 text-sm font-semibold">{part.label} ({partRules.length})</h3>
+              <p className="mb-3 text-xs text-slate-500">
+                {part.id === "document"
+                  ? "Checked against the uploaded document."
+                  : "Checked against an Excel workbook, when one is uploaded with the document (sheets, headers and completeness, not the data's correctness). Optional."}
+                    </p>
+              <ol className="space-y-2">
+                {partRules.map((rule) => {
+                  const open = openId === rule.id;
+                  return (
+                    <li key={rule.id} className="rounded-lg border border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-3 p-3">
+                        <button type="button" onClick={() => setOpenId(open ? null : rule.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open}>
+                          <Icon name="chevron" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "" : "-rotate-90"}`} />
+                          <span className="font-mono text-xs text-slate-500">{rule.id}</span>
+                          <span className="truncate text-sm font-medium">{rule.title || <em className="text-slate-400">Untitled rule</em>}</span>
+                        </button>
+                        <select
+                          aria-label={`Weight for ${rule.id}`}
+                          className="input w-auto py-1"
+                          value={rule.weight}
+                          onChange={(e) => updateRule(rule.id, "weight", e.target.value)}
+                        >
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
+                        <label className="flex items-center gap-1.5 whitespace-nowrap text-sm">
+                          <input type="checkbox" checked={rule.critical} onChange={(e) => updateRule(rule.id, "critical", e.target.checked)} className="h-4 w-4 accent-red-600" />
+                          Critical
+                        </label>
+                        <button type="button" onClick={() => deleteRule(rule.id)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50" title={`Delete ${rule.id}`}>
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                      {open && (
+                        <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-800">
+                          <Field label="Title" required>
+                            <input className="input" value={rule.title} onChange={(e) => updateRule(rule.id, "title", e.target.value)} placeholder="e.g. Measurable business objectives" />
+                          </Field>
+                          <Field label="Checks" hint="The document (Part A) or the Excel workbook (Part B).">
+                            <select className="input" value={rule.part || "document"} onChange={(e) => updateRule(rule.id, "part", e.target.value)}>
+                              {PARTS.map((p) => <option key={p.id} value={p.id}>{p.short}</option>)}
+                            </select>
+                          </Field>
+                          <div className="sm:col-span-2">
+                            <Field label="What to check" required hint="Exactly what the reviewer looks for, including what counts as only partly met.">
+                              <textarea className="input min-h-20" value={rule.check} onChange={(e) => updateRule(rule.id, "check", e.target.value)} />
+                            </Field>
+                          </div>
+                          <Field label="Example that passes">
+                            <textarea className="input min-h-16" value={rule.pass_example || ""} onChange={(e) => updateRule(rule.id, "pass_example", e.target.value)} />
+                          </Field>
+                          <Field label="Example that fails">
+                            <textarea className="input min-h-16" value={rule.fail_example || ""} onChange={(e) => updateRule(rule.id, "fail_example", e.target.value)} />
+                          </Field>
+                          {rule.critical && (
+                            <p className="text-xs text-red-700 sm:col-span-2 dark:text-red-400">
+                              Critical: if this rule is Not Met, the document fails whatever its score.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              <Button variant="secondary" icon="plus" onClick={() => addRule(part.id)} className="mt-3">
+                {part.id === "excel" ? "Add Excel rule" : "Add rule"}
+              </Button>
+            </section>
+          );
+        })}
       </Card>
 
       <Card title="Save">

@@ -9,7 +9,7 @@ import {
   Badge, Button, Card, CriticalBadge, EmptyState, ErrorMessage, Notice, PageHeader, PassFailBadge, RuleStatusBadge, Spinner,
 } from "../components/ui";
 import { api, useFetch } from "../lib/api";
-import { formatDateTime, formatPoints } from "../lib/format";
+import { formatDateTime, formatPoints, PARTS } from "../lib/format";
 
 const POLL_MS = 2000;
 const SUGGESTION_TABS = [
@@ -53,6 +53,7 @@ export default function Review() {
         <>
           {review.document_type_name} · Version {review.version_number}
           {review.project_name && <> · {review.project_name}</>} · {review.original_filename}
+          {review.workbook_filename && <> + {review.workbook_filename}</>}
         </>
       }
     />
@@ -66,7 +67,7 @@ export default function Review() {
 function Progress({ review }) {
   const processing = review.status === "processing";
   const steps = [
-    { label: "Reading document", state: "done" },
+    { label: review.workbook_filename ? "Reading document and Excel workbook" : "Reading document", state: "done" },
     { label: `Checking ${review.rule_count} rules`, state: processing ? "active" : "waiting" },
     { label: "Calculating score", state: "waiting" },
   ];
@@ -130,6 +131,11 @@ function Results({ review }) {
   const visibleRules = statusFilter === "all" ? review.rules : review.rules.filter((r) => r.status === statusFilter);
   const isLatest = review.version_number === review.latest_version_number;
   const c = review.comparison;
+  // With a workbook, rules and suggestions are shown in two groups: Part A (document) and Part B (Excel).
+  const byPart = review.rules.some((r) => r.part === "excel");
+  const subtotals = { document: review.document_subtotal, excel: review.excel_subtotal };
+  const groups = byPart ? PARTS : [{ id: "document", label: null }];
+  const inGroup = (group, rule) => !byPart || rule.part === group.id;
 
   const rerun = async () => {
     try {
@@ -154,7 +160,15 @@ function Results({ review }) {
         <Button variant="secondary" icon="folder" to="/documents">Back to Documents</Button>
       </div>
       <ErrorMessage error={rerunError} title="Couldn't start a new review" />
-      {showUpload && <RevisedUpload documentId={review.document_id} nextVersion={review.latest_version_number + 1} onCancel={() => setShowUpload(false)} />}
+      {showUpload && (
+        <RevisedUpload
+          documentId={review.document_id}
+          nextVersion={review.latest_version_number + 1}
+          typeKey={review.document_type_key}
+          previousWorkbook={review.workbook_filename}
+          onCancel={() => setShowUpload(false)}
+        />
+      )}
       {!isLatest && (
         <Notice tone="info">
           This is version {review.version_number}. A newer version exists:{" "}
@@ -167,6 +181,13 @@ function Results({ review }) {
           not to judge the document. Once a key is added, click Re-run review.
         </Notice>
       )}
+      {review.excel_rules_left_out > 0 && (
+        <Notice tone="info" icon="table" title="Excel rules not checked">
+          This rulebook has {review.excel_rules_left_out} Excel rule{review.excel_rules_left_out > 1 ? "s" : ""} (Part B), but no
+          Excel workbook was uploaded, so {review.excel_rules_left_out > 1 ? "they were" : "it was"} left out. They don't count
+          against the score. To include them, upload a revised version with the workbook.
+        </Notice>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -174,6 +195,17 @@ function Results({ review }) {
             <ScoreGauge score={review.score} threshold={review.pass_threshold} passed={review.passed} />
             <div className="mt-2"><PassFailBadge passed={review.passed} large /></div>
             <p className="mt-2 text-xs text-slate-500">Pass mark {review.pass_threshold}, and every critical rule must be at least partly met.</p>
+            {byPart && (
+              <div className="mt-4 grid w-full grid-cols-2 gap-2">
+                {PARTS.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
+                    <p className="text-xl font-semibold">{subtotals[p.id]}</p>
+                    <p className="text-xs text-slate-500">{p.short}</p>
+                  </div>
+                ))}
+                <p className="col-span-2 text-xs text-slate-500">Subtotals per part. The score and Pass/Fail cover both.</p>
+              </div>
+            )}
             {c && (
               <div className="mt-4 w-full rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/50">
                 <p className="flex items-center justify-center gap-1 font-medium">
@@ -255,10 +287,17 @@ function Results({ review }) {
         {counts[suggestionTab] === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">No suggestions of this kind.</p>
         ) : (
-          <div className="space-y-3">
-            {suggestions
-              .filter((s) => s.suggestion.type === suggestionTab)
-              .map(({ suggestion, rule }) => <SuggestionCard key={suggestion.id} suggestion={suggestion} rule={rule} />)}
+          <div className="space-y-5">
+            {groups.map((group) => {
+              const items = suggestions.filter((s) => s.suggestion.type === suggestionTab && inGroup(group, s.rule));
+              if (items.length === 0) return null;
+              return (
+                <section key={group.id} className="space-y-3">
+                  {group.label && <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300">{group.label} ({items.length})</h3>}
+                  {items.map(({ suggestion, rule }) => <SuggestionCard key={suggestion.id} suggestion={suggestion} rule={rule} />)}
+                </section>
+              );
+            })}
           </div>
         )}
       </Card>
@@ -293,24 +332,37 @@ function Results({ review }) {
                 <th className="py-2 font-medium">Evidence and explanation</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {visibleRules.map((r) => (
-                <tr key={r.rule_id} className="align-top">
-                  <td className="py-3 pr-3">
-                    <span className="font-mono text-xs text-slate-500">{r.rule_id}</span>
-                    <p className="font-medium">{r.title}</p>
-                    {r.critical && <p className="mt-1"><CriticalBadge /></p>}
-                  </td>
-                  <td className="py-3 pr-3"><RuleStatusBadge status={r.status} /></td>
-                  <td className="whitespace-nowrap py-3 pr-3">{formatPoints(r.points_earned)} / {r.points_possible}</td>
-                  <td className="py-3">
-                    <p className="italic text-slate-700 dark:text-slate-300">"{r.evidence}"</p>
-                    <p className="text-xs text-slate-500">{r.location}</p>
-                    <p className="mt-1 text-slate-600 dark:text-slate-400">{r.explanation}</p>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {groups.map((group) => {
+              const rows = visibleRules.filter((r) => inGroup(group, r));
+              if (rows.length === 0) return null;
+              return (
+                <tbody key={group.id} className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {group.label && (
+                    <tr>
+                      <th colSpan={4} className="bg-slate-50 px-2 py-2 text-sm font-semibold dark:bg-slate-800/50">
+                        {group.label} · subtotal {subtotals[group.id]}
+                      </th>
+                    </tr>
+                  )}
+                  {rows.map((r) => (
+                    <tr key={r.rule_id} className="align-top">
+                      <td className="py-3 pr-3">
+                        <span className="font-mono text-xs text-slate-500">{r.rule_id}</span>
+                        <p className="font-medium">{r.title}</p>
+                        {r.critical && <p className="mt-1"><CriticalBadge /></p>}
+                      </td>
+                      <td className="py-3 pr-3"><RuleStatusBadge status={r.status} /></td>
+                      <td className="whitespace-nowrap py-3 pr-3">{formatPoints(r.points_earned)} / {r.points_possible}</td>
+                      <td className="py-3">
+                        <p className="italic text-slate-700 dark:text-slate-300">"{r.evidence}"</p>
+                        <p className="text-xs text-slate-500">{r.location}</p>
+                        <p className="mt-1 text-slate-600 dark:text-slate-400">{r.explanation}</p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              );
+            })}
           </table>
           {visibleRules.length === 0 && <p className="py-6 text-center text-sm text-slate-500">No rules with this status.</p>}
         </div>

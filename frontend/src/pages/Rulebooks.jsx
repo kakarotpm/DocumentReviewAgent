@@ -34,7 +34,7 @@ export default function Rulebooks() {
               </div>
               <p className="mt-2 flex-1 text-sm text-slate-600 dark:text-slate-400">{t.description}</p>
               <p className="mt-4 text-xs text-slate-500">
-                {t.rule_count} rules · version {t.version}
+                {t.rule_count} rules{t.has_excel_rules && " (incl. Excel)"} · version {t.version}
               </p>
             </Link>
           ))}

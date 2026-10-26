@@ -155,9 +155,16 @@ def evaluate_workbook(
     return output, settings.anthropic_model, EVALUATE_WORKBOOK_PROMPT
 
 
+EXCEL_RULE_NOTE = (
+    "This rule is a Part B (Excel) rule: it checks the Excel workbook that accompanies the document "
+    "(sheet names, column and row headers, and whether required content is filled in), not the document "
+    "itself, and never whether the data values are correct.\n\n"
+)
+
+
 def _rule_as_text(rule: Rule) -> str:
     return (
-        f"id: {rule.id}\ntitle: {rule.title}\nweight: {rule.weight}\ncritical: {str(rule.critical).lower()}\n"
+        f"id: {rule.id}\ntitle: {rule.title}\npart: {rule.part}\nweight: {rule.weight}\ncritical: {str(rule.critical).lower()}\n"
         f"check: {rule.check}\npass_example: {rule.pass_example or ''}\nfail_example: {rule.fail_example or ''}"
     )
 
@@ -174,12 +181,14 @@ def draft_rules(instruction: str, display_name: str) -> AIProposedRulebook:
     return _ask_claude(load_prompt(DRAFT_RULES_PROMPT), user, AIProposedRulebook, problem)
 
 
-def draft_rule(instruction: str, rulebook: Rulebook, existing: Rule | None) -> AIProposedSingleRule:
+def draft_rule(instruction: str, rulebook: Rulebook, existing: Rule | None, part: str = "document") -> AIProposedSingleRule:
     """Ask the AI to write one new rule for a rulebook, or to change one existing rule."""
     if not ai_available():
         raise AINotConfigured()
     others = "\n\n".join(_rule_as_text(r) for r in rulebook.rules if existing is None or r.id != existing.id)
     context = f"Document type: {rulebook.display_name}\nDescription: {rulebook.description}\n\n<other_rules>\n{others}\n</other_rules>\n\n"
+    if part == "excel":
+        context += EXCEL_RULE_NOTE
     if existing is None:
         user = context + f"Write a NEW rule as described.\n<instruction>\n{instruction}\n</instruction>"
     else:
