@@ -1,10 +1,11 @@
 import io
 
 import docx
+import openpyxl
 import pytest
 
 from app.config import PROJECT_ROOT
-from app.services.extraction import ExtractionError, extract_text
+from app.services.extraction import MAX_ROWS_PER_SHEET, ExtractionError, extract_text, extract_workbook
 from tests.pdf_helper import make_pdf
 
 SAMPLES = PROJECT_ROOT / "samples"
@@ -104,3 +105,60 @@ def test_damaged_pdf():
 
 def test_nearly_empty_text_file():
     assert "almost no text" in error_for("a.txt", b"hello")
+
+
+# ---------- Excel workbooks ----------
+
+
+def make_xlsx(sheets: dict[str, list[list]]) -> bytes:
+    workbook = openpyxl.Workbook()
+    workbook.remove(workbook.active)
+    for name, rows in sheets.items():
+        sheet = workbook.create_sheet(name)
+        for row in rows:
+            sheet.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def test_workbook_sheets_headers_and_rows():
+    data = make_xlsx({
+        "Field Mapping": [["Target Field", "Source Field", "Transformation"], ["invoice_id", "BELNR", None], [], ["amount", "WRBTR", "  round to   2dp "]],
+        "Notes": [],
+    })
+    text = extract_workbook("mapping.xlsx", data)
+    assert text.startswith("Workbook: mapping.xlsx (2 sheets)")
+    assert "## Sheet: Field Mapping\n(3 rows with content)\n| Target Field | Source Field | Transformation |" in text
+    assert "| invoice_id | BELNR |\n" in text  # trailing empty cells dropped, empty rows skipped
+    assert "| amount | WRBTR | round to 2dp |" in text  # whitespace tidied
+    assert "## Sheet: Notes\n(empty sheet)" in text
+
+
+def test_workbook_keeps_only_the_first_rows_of_a_long_sheet():
+    data = make_xlsx({"Big": [["Row", n] for n in range(MAX_ROWS_PER_SHEET + 5)]})
+    text = extract_workbook("big.xlsx", data)
+    assert f"{MAX_ROWS_PER_SHEET + 5} rows with content; only the first {MAX_ROWS_PER_SHEET} are shown" in text
+    assert f"| Row | {MAX_ROWS_PER_SHEET - 1} |" in text
+    assert f"| Row | {MAX_ROWS_PER_SHEET} |" not in text
+
+
+def test_sample_workbook_extracts():
+    text = extract_workbook("frd_mapping_sample.xlsx", (SAMPLES / "frd_mapping_sample.xlsx").read_bytes())
+    for sheet in ["Read Me", "Source Systems", "Field Mapping", "Joins", "Measures", "Reconciliation"]:
+        assert f"## Sheet: {sheet}" in text
+
+
+@pytest.mark.parametrize(
+    "filename, data, message",
+    [
+        ("old.xls", b"x" * 100, "save it as .xlsx"),
+        ("mapping.csv", b"a,b", "Please upload a .xlsx file"),
+        ("empty.xlsx", b"", "is empty"),
+        ("broken.xlsx", b"not a zip file", "couldn't be opened as an Excel workbook"),
+        ("blank.xlsx", make_xlsx({"Sheet1": []}), "has no content in any sheet"),
+    ],
+)
+def test_unusable_workbooks(filename, data, message):
+    with pytest.raises(ExtractionError, match=message):
+        extract_workbook(filename, data)

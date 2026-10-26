@@ -103,20 +103,32 @@ def create_document(
     return _upload_result(version, review)
 
 
-def add_version(session: Session, *, document_id: int, filename: str, data: bytes) -> UploadResult | None:
+def add_version(
+    session: Session,
+    *,
+    document_id: int,
+    filename: str,
+    data: bytes,
+    workbook: tuple[str, bytes] | None = None,
+) -> UploadResult | None:
     """Add a revised version to a document and queue its review against the latest rulebook.
 
-    Returns None if the document doesn't exist. Raises ExtractionError for unusable files.
+    `workbook` is an optional (filename, bytes) Excel file, as in create_document. A workbook
+    isn't carried over from the previous version: upload it again to have it reviewed.
+    Returns None if the document doesn't exist. Raises UploadError or ExtractionError for unusable files.
     """
     document = session.get(Document, document_id)
     if document is None:
         return None
     file_type, text = extract_text(filename, data)
+    workbook_filename, workbook_text = _read_workbook(document.document_type, workbook)
     version = DocumentVersion(
         version_number=document.versions[-1].version_number + 1,
         original_filename=filename,
         file_type=file_type,
         extracted_text=text,
+        workbook_filename=workbook_filename,
+        workbook_text=workbook_text,
     )
     document.versions.append(version)
     review = Review(document_version=version, rulebook_version=document.document_type.latest_version, status="queued")
@@ -160,6 +172,7 @@ def get_document(session: Session, document_id: int) -> DocumentDetail | None:
                 original_filename=v.original_filename,
                 file_type=v.file_type,
                 extracted_characters=len(v.extracted_text),
+                workbook_filename=v.workbook_filename,
                 uploaded_at=v.uploaded_at,
                 reviews=[
                     ReviewSummary(

@@ -60,6 +60,7 @@ class VersionSummary(BaseModel):
     original_filename: str
     file_type: str
     extracted_characters: int
+    workbook_filename: str | None = None  # the Excel workbook reviewed with this version, if any
     uploaded_at: datetime
     reviews: list[ReviewSummary]
 
@@ -85,6 +86,7 @@ class UploadResult(BaseModel):
     file_type: str
     extracted_characters: int
     extracted_text_preview: str
+    workbook_filename: str | None = None
 
 
 # ---------- What the AI must return (validated with these models) ----------

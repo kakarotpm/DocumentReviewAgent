@@ -14,6 +14,15 @@ from app.services.review_engine import run_review
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
+WORKBOOK_HELP = "Optional .xlsx workbook, reviewed against the rulebook's Part B (Excel rules)"
+
+
+async def _read_optional(upload: UploadFile | None) -> tuple[str, bytes] | None:
+    """(filename, bytes) for an optional upload, held in memory only; None if no file was sent."""
+    if upload is None or not upload.filename:
+        return None
+    return upload.filename, await upload.read()
+
 
 @router.post("", response_model=UploadResult, status_code=201)
 async def upload_document(
@@ -23,6 +32,7 @@ async def upload_document(
     uploaded_by: str = Form(..., description="Your name"),
     title: str = Form("", description="Leave blank to use the file name"),
     project_name: str = Form(""),
+    workbook: UploadFile | None = File(None, description=WORKBOOK_HELP),
     session: Session = Depends(get_session),
     session_factory=Depends(get_session_factory),
 ):
@@ -37,6 +47,7 @@ async def upload_document(
             uploaded_by=uploaded_by,
             title=title,
             project_name=project_name,
+            workbook=await _read_optional(workbook),
         )
     except (UploadError, ExtractionError) as e:
         raise HTTPException(400, str(e))
@@ -49,14 +60,21 @@ async def upload_revised_version(
     document_id: int,
     background: BackgroundTasks,
     file: UploadFile = File(..., description="The revised document"),
+    workbook: UploadFile | None = File(None, description=WORKBOOK_HELP),
     session: Session = Depends(get_session),
     session_factory=Depends(get_session_factory),
 ):
     """Upload a revised version of a document; it's reviewed against the latest rulebook."""
     data = await file.read()
     try:
-        result = documents.add_version(session, document_id=document_id, filename=file.filename or "upload", data=data)
-    except ExtractionError as e:
+        result = documents.add_version(
+            session,
+            document_id=document_id,
+            filename=file.filename or "upload",
+            data=data,
+            workbook=await _read_optional(workbook),
+        )
+    except (UploadError, ExtractionError) as e:
         raise HTTPException(400, str(e))
     if result is None:
         raise HTTPException(404, f"No document with ID {document_id}.")
