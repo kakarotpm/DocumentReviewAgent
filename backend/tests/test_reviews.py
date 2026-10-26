@@ -353,3 +353,113 @@ def test_pdf_report_grouped_by_part(client, session, frd_excel_rule):
     [(heading, _)] = _rules_by_part(without)
     assert heading == ""  # one part: no part headings
     assert client.get(f"/api/reviews/{without.id}/report").status_code == 200
+
+
+# ---------- OpenAI (GPT) instead of Claude, with OpenAI replaced by a fake ----------
+
+
+def openai_response(parsed=None, status="completed", incomplete_reason=None, refusal=False):
+    content = [SimpleNamespace(type="refusal", refusal="no")] if refusal else [SimpleNamespace(type="output_text")]
+    return SimpleNamespace(
+        output=[SimpleNamespace(type="message", content=content)],
+        output_parsed=parsed,
+        status=status,
+        incomplete_details=SimpleNamespace(reason=incomplete_reason) if incomplete_reason else None,
+    )
+
+
+@pytest.fixture
+def fake_openai(monkeypatch):
+    """AI_PROVIDER=openai with a key and model, and OpenAI replaced by a fake that records calls."""
+    monkeypatch.setattr(settings, "ai_provider", "openai")
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_model", "gpt-test")
+    responses = []
+    calls = []
+
+    class FakeResponses:
+        def parse(self, **kwargs):
+            calls.append(kwargs)
+            answer = responses.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(llm.openai, "OpenAI", FakeClient)
+    return SimpleNamespace(responses=responses, calls=calls)
+
+
+def test_openai_answer_is_used(session, fake_openai):
+    rules = brd_rules(session)
+    fake_openai.responses.append(openai_response(AIReviewOutput(results=[judgement(r.id) for r in rules])))
+    output, model, prompt = llm.evaluate_rules("doc text", rules, "BRD")
+    assert len(output.results) == 10
+    assert model == "gpt-test" and prompt == "evaluate_rules_v1"
+    [call] = fake_openai.calls
+    assert call["model"] == "gpt-test"
+    assert "senior business analysis reviewer" in call["instructions"]
+    assert "<document>\ndoc text\n</document>" in call["input"]
+    assert call["text_format"] is AIReviewOutput
+    assert call["store"] is False  # the document isn't kept on OpenAI's side
+    assert "reasoning" not in call  # only sent when OPENAI_REASONING_EFFORT is set
+
+
+def test_openai_reasoning_effort_is_sent_when_set(session, fake_openai, monkeypatch):
+    monkeypatch.setattr(settings, "openai_reasoning_effort", "medium")
+    rules = brd_rules(session)
+    fake_openai.responses.append(openai_response(AIReviewOutput(results=[judgement(r.id) for r in rules])))
+    llm.evaluate_rules("doc", rules, "BRD")
+    assert fake_openai.calls[0]["reasoning"] == {"effort": "medium"}
+
+
+def test_openai_cut_off_twice_gives_friendly_error(session, fake_openai):
+    cut_off = openai_response(status="incomplete", incomplete_reason="max_output_tokens")
+    fake_openai.responses.extend([cut_off, cut_off])
+    with pytest.raises(llm.AIError, match="incomplete twice"):
+        llm.evaluate_rules("doc", brd_rules(session), "BRD")
+
+
+def test_openai_refusal_gives_friendly_error(session, fake_openai):
+    fake_openai.responses.append(openai_response(refusal=True))
+    with pytest.raises(llm.AIError, match="declined"):
+        llm.evaluate_rules("doc", brd_rules(session), "BRD")
+
+
+def test_openai_rejected_key_gives_friendly_error(session, fake_openai):
+    import httpx2 as httpx
+
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    fake_openai.responses.append(llm.openai.AuthenticationError("bad key", response=httpx.Response(401, request=request), body=None))
+    with pytest.raises(llm.AIError, match="Check OPENAI_API_KEY"):
+        llm.evaluate_rules("doc", brd_rules(session), "BRD")
+
+
+def test_openai_without_a_model_explains_what_to_set(session, fake_openai, monkeypatch):
+    monkeypatch.setattr(settings, "openai_model", " ")
+    with pytest.raises(llm.AIError, match="OPENAI_MODEL isn't set"):
+        llm.evaluate_rules("doc", brd_rules(session), "BRD")
+    assert fake_openai.calls == []
+
+
+def test_review_with_openai_records_the_model(client, session, fake_openai):
+    rules = brd_rules(session)
+    fake_openai.responses.append(openai_response(AIReviewOutput(results=[judgement(r.id) for r in rules])))
+    review = client.get(f"/api/reviews/{upload(client)['review_id']}").json()
+    assert review["status"] == "complete" and review["is_demo"] is False
+    assert review["model_name"] == "gpt-test"
+    health = client.get("/api/health").json()
+    assert health["provider"] == "OpenAI (GPT)" and health["model"] == "gpt-test" and health["api_key_configured"] is True
+
+
+def test_which_key_counts_depends_on_the_provider(monkeypatch):
+    monkeypatch.setattr(settings, "anthropic_api_key", "a-key")
+    assert llm.ai_available() is True
+    monkeypatch.setattr(settings, "ai_provider", "OpenAI")  # case doesn't matter
+    assert llm.ai_available() is False  # the Anthropic key doesn't count for OpenAI
+    assert llm.key_setting() == "OPENAI_API_KEY"
+    monkeypatch.setattr(settings, "ai_provider", "somebody-else")
+    assert llm.ai_available() is False  # unknown provider: demo mode

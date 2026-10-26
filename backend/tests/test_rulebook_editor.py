@@ -168,9 +168,9 @@ def test_non_md_upload_rejected(client):
 def test_prompt_without_api_key_explains_what_to_do(client):
     response = client.post("/api/document-types/brd/rules/draft", json={"instruction": "Add a glossary rule"})
     assert response.status_code == 400
-    assert "no Anthropic API key is set" in response.json()["detail"]["message"]
+    assert "no API key is set. Add ANTHROPIC_API_KEY" in response.json()["detail"]["message"]
     response = client.post("/api/document-types/prompt-preview", json={"instruction": "x", "display_name": "Data Migration Plan"})
-    assert "no Anthropic API key is set" in response.json()["detail"]["message"]
+    assert "no API key is set. Add ANTHROPIC_API_KEY" in response.json()["detail"]["message"]
 
 
 def test_prompt_needs_a_name_for_new_type(client):
@@ -191,7 +191,7 @@ def test_draft_rule_errors(client):
 def fake_ai(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     holder = SimpleNamespace(proposal=None)
-    monkeypatch.setattr(llm, "_ask_claude", lambda system, user, fmt, problem: holder.proposal)
+    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem: holder.proposal)
     return holder
 
 
@@ -241,7 +241,7 @@ def test_prompt_new_type(client, fake_ai):
 def test_ai_drafts_a_new_excel_rule(client, monkeypatch, frd_excel_rule):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     prompts = []
-    monkeypatch.setattr(llm, "_ask_claude", lambda system, user, fmt, problem: prompts.append(user) or single("Joins sheet"))
+    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem: prompts.append(user) or single("Joins sheet"))
     body = client.post("/api/document-types/frd/rules/draft", json={"instruction": "Joins need keys", "part": "excel"}).json()
     assert body["rule"]["id"] == "FRD-XL-02" and body["rule"]["part"] == "excel"
     assert "Part B (Excel) rule" in prompts[0]

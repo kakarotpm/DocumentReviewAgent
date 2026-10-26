@@ -26,11 +26,24 @@ npm install
 
 ## AI key and demo mode
 
-Reviews use Anthropic's Claude API. Put your key in the `.env` file in the project root:
+Reviews can use either Anthropic's Claude or OpenAI's GPT. `AI_PROVIDER` in the `.env` file (project root) picks which one; see `.env.example` for every setting.
+
+For OpenAI (GPT):
 
 ```
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=the-model-name-from-your-OpenAI-dashboard
+```
+
+For Anthropic (Claude):
+
+```
+AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+Both get the same prompts and must return the same structured answer, and every review records the model it used. The backend's startup message says which provider and model are in use, and http://localhost:8000/api/health shows it too.
 
 Then restart the backend. **Without a key the app runs in demo mode:** reviews use simple keyword matching instead of AI (clearly labelled on every result), and drafting rules from a prompt is disabled. Everything else works. After adding a key, open any demo review and click **Re-run review** to get a real one.
 

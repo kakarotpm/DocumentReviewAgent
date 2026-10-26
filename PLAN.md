@@ -9,6 +9,7 @@ Based on [intent.md](intent.md). Nine phases, following intent.md §12. Each pha
 **Progress (2026-10-21):** No API key yet, so the product owner asked for everything else to be built first. Done: Phases 1–6 and 8, plus from Phase 9 the suggestion status toggles, dark mode, and empty/error states. Without a key the app runs in **demo mode** (keyword-matching reviewer, clearly labelled). Remaining:
 - ~~Phase 7 Dashboard~~ done 2026-10-21 (product owner asked Claude to write the SQL). Queries in `backend/app/services/dashboard.sql`. "Most failed rules" counts Not Met only. The "pass rate overlay" is shown as a second chart under reviews-per-week, not a second y-axis on the same chart.
 - ~~Phase 9 PDF report~~ done 2026-10-21 with `fpdf2` (approved). Download button on the results page.
+- **AI provider (2026-10-27):** the product owner has an OpenAI key for now, so the AI is switchable: `AI_PROVIDER=openai` or `anthropic` in `.env` (see `.env.example`). Same prompts and structured answers for both; each review records its model.
 - **With the API key:** run real reviews on both samples, run `scripts/consistency_check.py` (±3 target), and try prompt-based rule drafting.
 
 **Excel workbook (Part B) work, started 2026-10-26** (decisions in CLAUDE.md, "Excel workbook decisions"):

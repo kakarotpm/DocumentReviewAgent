@@ -71,7 +71,7 @@ function AIRequestCard({ title, askName, label, hint, placeholder, buttonLabel, 
       {!aiAvailable && (
         <div className="mb-4">
           <Notice tone="warning" title="Needs the AI">
-            This needs an Anthropic API key, which isn't set yet. You can still add and edit rules by hand, or upload a .md file.
+            This needs an AI API key (ANTHROPIC_API_KEY or OPENAI_API_KEY in the .env file), which isn't set yet. You can still add and edit rules by hand, or upload a .md file.
           </Notice>
         </div>
       )}

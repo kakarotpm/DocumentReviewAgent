@@ -20,8 +20,9 @@ python-multipart==0.0.32
 python-docx==1.2.0
 pdfplumber==0.11.10
 
-# Claude API
+# AI: Claude (Anthropic) or GPT (OpenAI), chosen by AI_PROVIDER in .env
 anthropic==1.15.0
+openai==3.38.0
 
 # PDF reports
 fpdf2==2.8.9

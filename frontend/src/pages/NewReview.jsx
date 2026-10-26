@@ -21,7 +21,7 @@ function StepTitle({ number, children }) {
 export default function NewReview() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { aiAvailable } = useHealth();
+  const { aiAvailable, provider } = useHealth();
   const types = useFetch("/api/document-types");
   const projects = useFetch("/api/documents/projects");
 
@@ -122,7 +122,7 @@ export default function NewReview() {
           <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
             <Icon name="shield" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {aiAvailable
-              ? "The text of the document (and the workbook, if added) is sent to Anthropic's Claude API to be reviewed. The files themselves aren't stored; only their text is kept."
+              ? `The text of the document (and the workbook, if added) is sent to the AI service (${provider}) to be reviewed. The files themselves aren't stored; only their text is kept.`
               : "Demo mode: nothing is sent anywhere. The files themselves aren't stored; only their text is kept."}
           </p>
         </Card>

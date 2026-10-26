@@ -20,8 +20,14 @@ FIXTURE_RULEBOOKS = Path(__file__).parent / "fixtures" / "rulebooks"
 
 @pytest.fixture(autouse=True)
 def demo_mode(monkeypatch):
-    """Tests never call the real AI: no API key means the demo reviewer is used."""
+    """Tests never call the real AI: no API key means the demo reviewer is used.
+    Every AI setting is reset, so whatever is in your .env (provider, keys, models) doesn't matter."""
+    monkeypatch.setattr(settings, "ai_provider", "anthropic")
     monkeypatch.setattr(settings, "anthropic_api_key", "")
+    monkeypatch.setattr(settings, "anthropic_model", "claude-test-model")
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "openai_model", "")
+    monkeypatch.setattr(settings, "openai_reasoning_effort", "")
 
 
 @pytest.fixture

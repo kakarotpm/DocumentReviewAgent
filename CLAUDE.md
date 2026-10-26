@@ -60,8 +60,8 @@ Many FRDs come with an Excel workbook (source-to-target mappings, transformation
 
 ## Tech stack
 
-- **Backend:** Python 3.11+, FastAPI, SQLAlchemy, SQLite (keep it swappable for PostgreSQL through config only), Pydantic, the official `anthropic` Python SDK.
-- **AI:** model comes from `ANTHROPIC_MODEL` in `.env`; default is `claude-sonnet-5-5`. Use structured outputs (`client.messages.parse` with Pydantic models) for rule evaluation. Note: current Claude models reject non-default `temperature` values, so we can't set temperature to 0. Consistency comes from structured outputs, precise rule `check` text with examples, and a fixed effort level (see PLAN.md).
+- **Backend:** Python 3.11+, FastAPI, SQLAlchemy, SQLite (keep it swappable for PostgreSQL through config only), Pydantic, the official `anthropic` and `openai` Python SDKs.
+- **AI:** two switchable providers (product owner, 2026-10-27, who has an OpenAI key for now): `AI_PROVIDER=anthropic|openai` in `.env`. Anthropic: model from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`), structured outputs via `client.messages.parse`. OpenAI: model from `OPENAI_MODEL` (no default; the product owner sets it), structured outputs via `client.responses.parse` with `store=False`. Both use the same prompts and Pydantic models; all AI calls go through `services/llm.py`, and every review records the model it used. Note: current Claude models reject non-default `temperature` values, so we can't set temperature to 0. Consistency comes from structured outputs, precise rule `check` text with examples, and a fixed effort level (see PLAN.md).
 - **File parsing:** `python-docx` (.docx), `pdfplumber` (.pdf; detect scanned/image-only PDFs and return a friendly error), plain read (.md, .txt). Max 10 MB.
 - **Frontend:** React + Vite, Tailwind CSS, Recharts, React Router. Frontend polls review status; reviews run as background tasks.
 - **Tests:** pytest for the scoring function, the rulebook parser, and file extraction.

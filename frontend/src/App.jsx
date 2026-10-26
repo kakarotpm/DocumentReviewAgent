@@ -22,7 +22,7 @@ export default function App() {
   const aiAvailable = health.data ? health.data.api_key_configured : true;
 
   return (
-    <HealthContext.Provider value={{ aiAvailable, model: health.data?.model || "" }}>
+    <HealthContext.Provider value={{ aiAvailable, model: health.data?.model || "", provider: health.data?.provider || "" }}>
       <div className="min-h-screen md:flex">
         <aside className="border-b border-slate-200 bg-white md:fixed md:inset-y-0 md:flex md:w-60 md:flex-col md:border-b-0 md:border-r dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between px-5 py-4 md:block">
