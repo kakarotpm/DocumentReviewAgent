@@ -19,7 +19,7 @@ from app.schemas import (
     SuggestionOut,
     VersionComparison,
 )
-from app.services import demo_reviewer, llm
+from app.services import demo_reviewer, llm, usage
 from app.services.scoring import calculate_score, part_subtotals
 
 logger = logging.getLogger(__name__)
@@ -60,16 +60,19 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
             return
         document_rules = [r for r in rules if r.part == "document"]
         excel_rules = [r for r in rules if r.part == "excel"]
+        tokens_used: list[llm.TokenUsage] = []
         try:
             # Two separate AI calls: the document against Part A, the workbook against Part B.
             judgements, prompt_versions = [], []
             if document_rules:
-                output, model_name, prompt_version = llm.evaluate_rules(version.extracted_text, document_rules, type_name)
+                output, model_name, prompt_version = llm.evaluate_rules(
+                    version.extracted_text, document_rules, type_name, usage=tokens_used
+                )
                 judgements += output.results
                 prompt_versions.append(prompt_version)
             if excel_rules:
                 output, model_name, prompt_version = llm.evaluate_workbook(
-                    version.workbook_text, version.extracted_text, excel_rules, type_name
+                    version.workbook_text, version.extracted_text, excel_rules, type_name, usage=tokens_used
                 )
                 judgements += output.results
                 prompt_versions.append(prompt_version)
@@ -82,6 +85,8 @@ def run_review(review_id: int, session_factory: Callable[[], Session]) -> None:
             logger.exception("Review %s failed unexpectedly", review_id)  # logs the error, not the document
             _fail(session, review, UNEXPECTED_MESSAGE)
             return
+        finally:
+            usage.record(session, tokens_used, review_id=review.id)  # tokens are paid for even if the review failed
 
         judgements = {j.rule_id: j for j in judgements}
         for rule in rules:  # saved in rulebook order

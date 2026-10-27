@@ -26,7 +26,7 @@ from app.schemas import (
     RulebookVersionInfo,
     SaveRulebookRequest,
 )
-from app.services import llm
+from app.services import llm, usage
 from app.services.rulebooks import DOC_TYPE_KEY, RulebookError, get_document_type, parse_rulebook
 
 RULE_ID = re.compile(r"^[A-Z]+(?:-[A-Z]+)*-\d+$")  # BRD-01, FRD-XL-01
@@ -247,10 +247,13 @@ def preview_prompt(session: Session, request: PromptRulesRequest) -> RulebookPre
     if _find_type(session, key):
         raise EditError(f"A document type called '{name}' already exists. Choose a different name, or open it to change it.")
 
+    tokens_used: list[llm.TokenUsage] = []
     try:
-        proposal = llm.draft_rules(instruction, name)
+        proposal = llm.draft_rules(instruction, name, usage=tokens_used)
     except llm.AIError as e:
         raise EditError(str(e))
+    finally:
+        usage.record(session, tokens_used)
 
     ids = _next_ids(id_prefix(name), set(), len(proposal.rules))
     rules = [
@@ -278,10 +281,13 @@ def draft_rule(session: Session, key: str, request: DraftRuleRequest) -> DraftRu
             raise EditError(f"There's no rule {request.rule_id} in this rulebook. It may have been deleted.")
 
     part = original.part if original else request.part
+    tokens_used: list[llm.TokenUsage] = []
     try:
-        proposal = llm.draft_rule(instruction, rulebook, original, part)
+        proposal = llm.draft_rule(instruction, rulebook, original, part, usage=tokens_used)
     except llm.AIError as e:
         raise EditError(str(e))
+    finally:
+        usage.record(session, tokens_used)
 
     if original:
         rule_id = original.id

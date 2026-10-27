@@ -191,7 +191,7 @@ def test_draft_rule_errors(client):
 def fake_ai(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     holder = SimpleNamespace(proposal=None)
-    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem: holder.proposal)
+    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem, purpose, usage: holder.proposal)
     return holder
 
 
@@ -241,7 +241,7 @@ def test_prompt_new_type(client, fake_ai):
 def test_ai_drafts_a_new_excel_rule(client, monkeypatch, frd_excel_rule):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
     prompts = []
-    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem: prompts.append(user) or single("Joins sheet"))
+    monkeypatch.setattr(llm, "_ask_ai", lambda system, user, fmt, problem, purpose, usage: prompts.append(user) or single("Joins sheet"))
     body = client.post("/api/document-types/frd/rules/draft", json={"instruction": "Joins need keys", "part": "excel"}).json()
     assert body["rule"]["id"] == "FRD-XL-02" and body["rule"]["part"] == "excel"
     assert "Part B (Excel) rule" in prompts[0]

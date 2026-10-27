@@ -7,10 +7,11 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import SessionLocal, init_db
-from app.routes import dashboard, document_types, documents, reviews
+from app.routes import dashboard, document_types, documents, reviews, usage
 from app.services.llm import PROVIDERS, ai_available, ai_provider, key_setting, model_name, provider_name
 from app.services.review_engine import mark_interrupted_reviews
 from app.services.rulebooks import load_builtin_rulebooks
+from app.services.usage import seed_default_prices
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
     init_db()
     with SessionLocal() as session:
         load_builtin_rulebooks(session, settings.rulebooks_dir)
+        seed_default_prices(session)
         interrupted = mark_interrupted_reviews(session)
         if interrupted:
             logger.info("Marked %s interrupted review(s) as errors", interrupted)
@@ -41,6 +43,7 @@ app.include_router(document_types.router)
 app.include_router(documents.router)
 app.include_router(reviews.router)
 app.include_router(dashboard.router)
+app.include_router(usage.router)
 
 
 @app.get("/api/health")

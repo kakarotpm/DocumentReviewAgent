@@ -11,6 +11,7 @@ const NAV = [
   { to: "/new-review", label: "New Review", icon: "plus" },
   { to: "/documents", label: "Documents", icon: "folder" },
   { to: "/rulebooks", label: "Rulebooks", icon: "book" },
+  { to: "/usage", label: "Usage Analytics", icon: "chart" },
 ];
 
 const THEME_LABEL = { system: "System theme", light: "Light theme", dark: "Dark theme" };

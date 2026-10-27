@@ -156,3 +156,40 @@ class Suggestion(Base):
     user_state: Mapped[str] = mapped_column(String(20), default="open")  # open / done / dismissed
 
     rule_result: Mapped[RuleResult] = relationship(back_populates="suggestions")
+
+
+class AIUsage(Base):
+    """One AI call: which model, what it was for, how many tokens it used, and what it cost.
+
+    Every call that got an answer is recorded, including retries and calls for reviews that
+    then failed, because the tokens are paid for either way. Demo mode makes no AI calls.
+    """
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    provider: Mapped[str] = mapped_column(String(20))  # anthropic / openai
+    model: Mapped[str] = mapped_column(String(100))
+    purpose: Mapped[str] = mapped_column(String(30))  # document_review / workbook_review / draft_rules / draft_rule
+    review_id: Mapped[int | None] = mapped_column(ForeignKey("reviews.id"))  # set for review calls
+    # input_tokens counts ALL input; cached_input_tokens is the part billed at the cheaper cached rate.
+    input_tokens: Mapped[int] = mapped_column(default=0)
+    cached_input_tokens: Mapped[int] = mapped_column(default=0)
+    output_tokens: Mapped[int] = mapped_column(default=0)
+    # Cost in US dollars at the price set when the call was made; None if no price was set for the model then.
+    cost_usd: Mapped[float | None]
+
+
+class ModelPrice(Base):
+    """What a model costs, in US dollars per 1 million tokens. Edited on the Usage Analytics page."""
+
+    __tablename__ = "model_prices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model: Mapped[str] = mapped_column(String(100), unique=True)
+    input_per_million: Mapped[float]
+    cached_input_per_million: Mapped[float]
+    output_per_million: Mapped[float]
+    updated_by: Mapped[str] = mapped_column(String(200))
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)

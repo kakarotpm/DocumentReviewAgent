@@ -11,6 +11,7 @@ import NewRulebook from "./pages/NewRulebook.jsx";
 import Review from "./pages/Review.jsx";
 import RulebookDetail from "./pages/RulebookDetail.jsx";
 import Rulebooks from "./pages/Rulebooks.jsx";
+import Usage from "./pages/Usage.jsx";
 import "./index.css";
 
 function NotFound() {
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: "rulebooks", element: <Rulebooks /> },
       { path: "rulebooks/new", element: <NewRulebook /> },
       { path: "rulebooks/:key", element: <RulebookDetail /> },
+      { path: "usage", element: <Usage /> },
       { path: "*", element: <NotFound /> },
     ],
   },

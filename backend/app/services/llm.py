@@ -8,6 +8,7 @@ same Pydantic models (structured outputs), so the rest of the app doesn't care w
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TypeVar
 
 import anthropic
@@ -34,6 +35,22 @@ PROVIDERS = {
 }
 
 T = TypeVar("T", bound=BaseModel)
+
+
+@dataclass
+class TokenUsage:
+    """The tokens one AI call used. Callers pass a list to collect these, then save them (services/usage.py).
+
+    input_tokens counts ALL input, including cached_input_tokens (the part billed at the cheaper cached rate).
+    The two providers count differently; _anthropic_tokens and _openai_tokens convert to this meaning.
+    """
+
+    provider: str
+    model: str
+    purpose: str  # document_review / workbook_review / draft_rules / draft_rule
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
 
 
 class AIError(Exception):
@@ -108,11 +125,31 @@ def _friendly_error(sdk, e: Exception, prefix: str, model: str) -> AIError:
     return AIError(f"The AI service returned an error ({status}). Try Re-run review in a few minutes.")
 
 
-# Each provider call returns (answer, issue): issue is None, "refusal" or "cut_off".
-# API errors become AIError; an answer that doesn't fit the model raises ValidationError/ValueError.
+# Each provider call returns (answer, issue, tokens): issue is None, "refusal" or "cut_off", and tokens is
+# (input, cached input, output). API errors become AIError; an answer that doesn't fit the model raises
+# ValidationError/ValueError (its tokens can't be counted then, because the SDK doesn't hand back the response).
 
 
-def _call_anthropic(system: str, user: str, output_format: type[T]) -> tuple[T | None, str | None]:
+def _anthropic_tokens(response) -> tuple[int, int, int]:
+    """Anthropic reports cache reads and writes separately from input_tokens, so add them in."""
+    u = getattr(response, "usage", None)
+    if u is None:
+        return 0, 0, 0
+    cached = getattr(u, "cache_read_input_tokens", None) or 0
+    written = getattr(u, "cache_creation_input_tokens", None) or 0
+    return (u.input_tokens or 0) + cached + written, cached, u.output_tokens or 0
+
+
+def _openai_tokens(response) -> tuple[int, int, int]:
+    """OpenAI's input_tokens already includes cached tokens; output_tokens includes reasoning tokens."""
+    u = getattr(response, "usage", None)
+    if u is None:
+        return 0, 0, 0
+    details = getattr(u, "input_tokens_details", None)
+    return u.input_tokens or 0, (getattr(details, "cached_tokens", None) or 0), u.output_tokens or 0
+
+
+def _call_anthropic(system: str, user: str, output_format: type[T]) -> tuple[T | None, str | None, tuple[int, int, int]]:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     try:
         response = client.messages.parse(
@@ -125,14 +162,15 @@ def _call_anthropic(system: str, user: str, output_format: type[T]) -> tuple[T |
         )
     except anthropic.APIError as e:
         raise _friendly_error(anthropic, e, "ANTHROPIC", settings.anthropic_model)
+    tokens = _anthropic_tokens(response)
     if response.stop_reason == "refusal":
-        return None, "refusal"
+        return None, "refusal", tokens
     if response.stop_reason == "max_tokens":
-        return None, "cut_off"
-    return response.parsed_output, None
+        return None, "cut_off", tokens
+    return response.parsed_output, None, tokens
 
 
-def _call_openai(system: str, user: str, output_format: type[T]) -> tuple[T | None, str | None]:
+def _call_openai(system: str, user: str, output_format: type[T]) -> tuple[T | None, str | None, tuple[int, int, int]]:
     model = settings.openai_model.strip()
     if not model:
         raise AIError(
@@ -153,29 +191,40 @@ def _call_openai(system: str, user: str, output_format: type[T]) -> tuple[T | No
         )
     except openai.APIError as e:
         raise _friendly_error(openai, e, "OPENAI", model)
+    tokens = _openai_tokens(response)
     refused = any(c.type == "refusal" for item in response.output if item.type == "message" for c in item.content)
     if refused or (response.incomplete_details and response.incomplete_details.reason == "content_filter"):
-        return None, "refusal"
+        return None, "refusal", tokens
     if response.status == "incomplete":
-        return None, "cut_off"
-    return response.output_parsed, None
+        return None, "cut_off", tokens
+    return response.output_parsed, None, tokens
 
 
-def _ask_ai(system: str, user: str, output_format: type[T], problem: Callable[[T], str | None]) -> T:
+def _ask_ai(
+    system: str,
+    user: str,
+    output_format: type[T],
+    problem: Callable[[T], str | None],
+    purpose: str,
+    usage: list[TokenUsage] | None,
+) -> T:
     """Call the chosen AI and return a validated answer. Retries once if the answer is invalid.
 
     `problem` returns a description of what's wrong with an answer, or None if it's fine.
+    Every attempt's tokens are added to `usage` (if given), including attempts that didn't work out.
     """
     call = _call_openai if ai_provider() == "openai" else _call_anthropic
     last_problem = ""
     for attempt in (1, 2):
         try:
-            answer, issue = call(system, user, output_format)
+            answer, issue, (input_tokens, cached, output_tokens) = call(system, user, output_format)
         except (ValidationError, ValueError) as e:
             last_problem = f"answer didn't match the expected format ({type(e).__name__})"
             logger.warning("AI answer invalid on attempt %s: %s", attempt, last_problem)
             continue
 
+        if usage is not None:
+            usage.append(TokenUsage(ai_provider(), model_name(), purpose, input_tokens, cached, output_tokens))
         if issue == "refusal":
             raise AIError("The AI declined to process this content. Check the document doesn't contain unrelated material, then try again.")
         if issue == "cut_off" or answer is None:
@@ -211,19 +260,25 @@ def _one_result_per_rule(rules: list[Rule]) -> Callable[[AIReviewOutput], str | 
     return problem
 
 
-def evaluate_rules(document_text: str, rules: list[Rule], document_type_name: str) -> tuple[AIReviewOutput, str, str]:
+def evaluate_rules(
+    document_text: str, rules: list[Rule], document_type_name: str, usage: list[TokenUsage] | None = None
+) -> tuple[AIReviewOutput, str, str]:
     """Judge every rule against the document. Returns (judgements, model name, prompt version)."""
     if not ai_available():
         return demo_reviewer.evaluate(document_text, rules), demo_reviewer.MODEL_NAME, demo_reviewer.PROMPT_VERSION
 
     system = load_prompt(EVALUATE_PROMPT).replace("{{document_type}}", document_type_name)
     user = f"<rules>\n{_rules_as_text(rules)}\n</rules>\n\n<document>\n{document_text}\n</document>"
-    output = _ask_ai(system, user, AIReviewOutput, _one_result_per_rule(rules))
+    output = _ask_ai(system, user, AIReviewOutput, _one_result_per_rule(rules), "document_review", usage)
     return output, model_name(), EVALUATE_PROMPT
 
 
 def evaluate_workbook(
-    workbook_text: str, document_text: str, rules: list[Rule], document_type_name: str
+    workbook_text: str,
+    document_text: str,
+    rules: list[Rule],
+    document_type_name: str,
+    usage: list[TokenUsage] | None = None,
 ) -> tuple[AIReviewOutput, str, str]:
     """Judge every Part B (Excel) rule against the workbook. The document text is included for
     consistency rules. Returns (judgements, model name, prompt version)."""
@@ -236,7 +291,7 @@ def evaluate_workbook(
         f"<document>\n{document_text}\n</document>\n\n"
         f"<workbook>\n{workbook_text}\n</workbook>"
     )
-    output = _ask_ai(system, user, AIReviewOutput, _one_result_per_rule(rules))
+    output = _ask_ai(system, user, AIReviewOutput, _one_result_per_rule(rules), "workbook_review", usage)
     return output, model_name(), EVALUATE_WORKBOOK_PROMPT
 
 
@@ -254,7 +309,7 @@ def _rule_as_text(rule: Rule) -> str:
     )
 
 
-def draft_rules(instruction: str, display_name: str) -> AIProposedRulebook:
+def draft_rules(instruction: str, display_name: str, usage: list[TokenUsage] | None = None) -> AIProposedRulebook:
     """Ask the AI to write a full set of rules for a NEW document type."""
     if not ai_available():
         raise AINotConfigured()
@@ -263,10 +318,16 @@ def draft_rules(instruction: str, display_name: str) -> AIProposedRulebook:
     def problem(output: AIProposedRulebook) -> str | None:
         return None if output.rules else "no rules were returned"
 
-    return _ask_ai(load_prompt(DRAFT_RULES_PROMPT), user, AIProposedRulebook, problem)
+    return _ask_ai(load_prompt(DRAFT_RULES_PROMPT), user, AIProposedRulebook, problem, "draft_rules", usage)
 
 
-def draft_rule(instruction: str, rulebook: Rulebook, existing: Rule | None, part: str = "document") -> AIProposedSingleRule:
+def draft_rule(
+    instruction: str,
+    rulebook: Rulebook,
+    existing: Rule | None,
+    part: str = "document",
+    usage: list[TokenUsage] | None = None,
+) -> AIProposedSingleRule:
     """Ask the AI to write one new rule for a rulebook, or to change one existing rule."""
     if not ai_available():
         raise AINotConfigured()
@@ -278,4 +339,4 @@ def draft_rule(instruction: str, rulebook: Rulebook, existing: Rule | None, part
         user = context + f"Write a NEW rule as described.\n<instruction>\n{instruction}\n</instruction>"
     else:
         user = context + f"<rule_to_change>\n{_rule_as_text(existing)}\n</rule_to_change>\n\nChange it as follows.\n<instruction>\n{instruction}\n</instruction>"
-    return _ask_ai(load_prompt(DRAFT_RULE_PROMPT), user, AIProposedSingleRule, lambda output: None)
+    return _ask_ai(load_prompt(DRAFT_RULE_PROMPT), user, AIProposedSingleRule, lambda output: None, "draft_rule", usage)
